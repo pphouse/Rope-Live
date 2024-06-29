@@ -21,13 +21,19 @@ onnxruntime.set_default_logger_severity(4)
 import rope.FaceUtil as faceutil
 
 import inspect #print(inspect.currentframe().f_back.f_code.co_name, 'resize_image')
-
+import pyvirtualcam
 device = 'cuda'
+
+# cap = cv2.VideoCapture(0)
+# cap_virt = pyvirtualcam.Camera(width=1920, height=1080, fps=1)
 
 lock=threading.Lock()
 
 class VideoManager():  
     def __init__(self, models ):
+        # self.webcam = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+
+        self.virtcam = False
         self.models = models
         # Model related
         self.swapper_model = []             # insightface swapper model
@@ -139,7 +145,17 @@ class VideoManager():
         # Open file   
         self.video_file = file
         self.capture = cv2.VideoCapture(file)
+
         self.fps = self.capture.get(cv2.CAP_PROP_FPS)
+
+        if self.virtcam:
+            self.virtcam.close()
+
+        vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))  
+  
+
+        self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
         
         if not self.capture.isOpened():
             print("Cannot open file: ", file)
@@ -425,10 +441,17 @@ class VideoManager():
             if index != -1:
                 if self.process_qs[index]['Status'] == 'finished':
                     temp = [self.process_qs[index]['ProcessedFrame'], self.process_qs[index]['FrameNumber']]
+
                     self.frame_q.append(temp)
 
                     # Report fps, other data
                     self.fps_average.append(1.0/time_diff)
+                    avg_fps = self.fps / self.fps_average[-1] if self.fps_average else 10
+
+                    # self.send_to_virtual_camera(temp[0], 15)
+                    # self.virtcam.send(cv2.resize(temp[0], (640,480), interpolation=cv2.INTER_CUBIC) )
+                    self.virtcam.send(cv2.flip(temp[0],1),)
+                    self.virtcam.sleep_until_next_frame()
                     if len(self.fps_average) >= floor(self.fps):
                         fps = round(np.average(self.fps_average), 2)
                         msg = "%s fps, %s process time" % (fps, round(self.process_qs[index]['ThreadTime'], 4))
@@ -454,6 +477,7 @@ class VideoManager():
                     image = self.process_qs[index]['ProcessedFrame']  
                     
                     if self.parameters['RecordTypeTextSel']=='FFMPEG':
+
                         pil_image = Image.fromarray(image)
                         pil_image.save(self.sp.stdin, 'BMP')   
                     
@@ -527,6 +551,8 @@ class VideoManager():
 
     # @profile
     def swap_video(self, target_image, frame_number, use_markers):
+        # success, target_image = self.webcam.read()
+        # self.capture_frame()
         # Grab a local copy of the parameters to prevent threading issues
         parameters = self.parameters.copy()
         control = self.control.copy()
@@ -676,7 +702,6 @@ class VideoManager():
                                 except:
                                     print("Key-points value {} exceed the image size {}.".format(kpoint, (img_x, img_y)))
                                     continue
-
         return img.astype(np.uint8)
 
     def findCosineDistance(self, vector1, vector2):
@@ -1381,3 +1406,50 @@ class VideoManager():
         # test = swap.permute(1, 2, 0)
         # test = test.cpu().numpy()
         # cv2.imwrite('2.jpg', test) 
+
+    def send_to_virtual_camera(self, frame, fps=10):
+        """Sends the modified frame to the virtual camera.
+
+        Args:
+            frame: The modified frame as a NumPy array.
+        """
+
+        if frame is None:
+            return
+        try:
+            with pyvirtualcam.Camera(width=frame.shape[1], height=frame.shape[0], fps=fps,print_fps=True) as cam:
+                cam.send(frame)
+                cam.sleep_until_next_frame()
+
+        except Exception as e:
+            print(e)
+
+
+
+    def capture_frame(self):
+        """Captures a frame from the webcam.
+
+        Returns:
+            The captured frame as a NumPy array, or None on error.
+        """
+        import matplotlib.pyplot as plt
+
+        cap = cv2.VideoCapture(0)  # Change index for different webcams
+
+        if not cap.isOpened():
+            print("Error opening webcam!")
+            return None
+
+        ret, frame = cap.read()
+
+        if not ret:
+            print("Error capturing frame!")
+            cap.release()
+            return None
+        else:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            plt.imshow(frame)
+            plt.show()
+
+        cap.release()
+        
