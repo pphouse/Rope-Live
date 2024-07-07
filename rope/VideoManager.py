@@ -495,14 +495,15 @@ class VideoManager():
                     self.process_qs[index]['FrameNumber'] = []
                     self.process_qs[index]['ThreadTime'] = []
                     self.frame_timer += 1.0/self.fps
-                    
-        elif self.record:
-           
-            index, min_frame = self.find_lowest_frame(self.process_qs)           
-            
-            if index != -1:
 
-                if not self.webcam_selected(self.video_file):
+        if not self.webcam_selected(self.video_file):           
+            if self.record:
+            
+                index, min_frame = self.find_lowest_frame(self.process_qs)           
+                
+                if index != -1:
+
+
 
                 # If the swapper thread has finished generating a frame
                     if self.process_qs[index]['Status'] == 'finished':
@@ -560,6 +561,9 @@ class VideoManager():
                         self.process_qs[index]['FrameNumber'] = []
                         self.process_qs[index]['Thread'] = []
                         self.frame_timer = time.time()
+        else:
+            self.record=False  
+            self.add_action('disable_record_button', False)      
     # @profile
     def thread_video_read(self, frame_number):  
         with lock:

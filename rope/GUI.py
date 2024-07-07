@@ -2591,3 +2591,6 @@ class GUI(tk.Tk):
             self.add_action('enable_virtualcam')
         else:
             self.add_action('disable_virtualcam')
+
+    def disable_record_button(self):
+        self.widget['TLRecButton'].disable_button()
