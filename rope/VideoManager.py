@@ -31,8 +31,6 @@ lock=threading.Lock()
 
 class VideoManager():  
     def __init__(self, models ):
-        # self.webcam = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-
         self.virtcam = False
         self.models = models
         # Model related
@@ -136,35 +134,70 @@ class VideoManager():
     def assign_found_faces(self, found_faces):
         self.found_faces = found_faces
 
+    def enable_virtualcam(self):
+        #Check if capture contains any cv2 stream or is it an empty list
+        if not isinstance(self.capture, (list)):
+            vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)) 
+            print(vid_height, vid_width)
+            self.disable_virtualcam()
+            self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
+    def disable_virtualcam(self):
+        if self.virtcam:
+            self.virtcam.close()
+        self.virtcam = False
+        # print("Disable hello")
 
     def load_target_video( self, file ):
         # If we already have a video loaded, release it
         if self.capture:
             self.capture.release()
+        
+        if self.control['VirtualCameraSwitch']:
+            self.add_action("set_virtual_cam_toggle_disable",None)
+            self.disable_virtualcam()
+
             
         # Open file   
         self.video_file = file
-        self.capture = cv2.VideoCapture(file)
+        if 'Webcam' in file:
+            webcam_index = int(file[-1])
+            self.capture = cv2.VideoCapture(webcam_index, cv2.CAP_DSHOW)
+            self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            self.fps = 30
 
-        self.fps = self.capture.get(cv2.CAP_PROP_FPS)
+        else:
+            self.capture = cv2.VideoCapture(file)
+            self.fps = self.capture.get(cv2.CAP_PROP_FPS)
 
-        if self.virtcam:
-            self.virtcam.close()
+        # if self.control['VirtualCameraSwitch']:
+        #     try:
+        #         self.enable_virtualcam()
+        #     except Exception as e:
+        #         print(e)
+        #         print(self.control)
+        # else:
+        #     try:
+        #         self.disable_virtualcam()
+        #     except Exception as e:
+        #         print(e)
+        #         print(self.control)
 
-        vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))  
-  
 
-        self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
         
         if not self.capture.isOpened():
-            print("Cannot open file: ", file)
+            if 'Webcam' in file:
+                print("Cannot open file: ", file)
             
         else:
             self.target_video = file
             self.is_video_loaded = True
             self.is_image_loaded = False
-            self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            if 'Webcam' not in file:
+                self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            else:
+                self.video_frame_total = 9999999
             self.play = False 
             self.current_frame = 0
             self.frame_timer = time.time()
@@ -449,9 +482,16 @@ class VideoManager():
                     avg_fps = self.fps / self.fps_average[-1] if self.fps_average else 10
 
                     # self.send_to_virtual_camera(temp[0], 15)
-                    # self.virtcam.send(cv2.resize(temp[0], (640,480), interpolation=cv2.INTER_CUBIC) )
-                    self.virtcam.send(cv2.flip(temp[0],1),)
-                    self.virtcam.sleep_until_next_frame()
+                    if self.control['VirtualCameraSwitch'] and self.virtcam:
+                        # print("virtcam",self.virtcam)
+                        try:
+                            # self.virtcam.send(cv2.resize(temp[0], (640,480), interpolation=cv2.INTER_CUBIC) )
+                            # self.virtcam.send(cv2.flip(temp[0],1),)
+                            self.virtcam.send(temp[0])
+
+                            self.virtcam.sleep_until_next_frame()
+                        except Exception as e:
+                            print(e)
                     if len(self.fps_average) >= floor(self.fps):
                         fps = round(np.average(self.fps_average), 2)
                         msg = "%s fps, %s process time" % (fps, round(self.process_qs[index]['ThreadTime'], 4))
@@ -1406,50 +1446,3 @@ class VideoManager():
         # test = swap.permute(1, 2, 0)
         # test = test.cpu().numpy()
         # cv2.imwrite('2.jpg', test) 
-
-    def send_to_virtual_camera(self, frame, fps=10):
-        """Sends the modified frame to the virtual camera.
-
-        Args:
-            frame: The modified frame as a NumPy array.
-        """
-
-        if frame is None:
-            return
-        try:
-            with pyvirtualcam.Camera(width=frame.shape[1], height=frame.shape[0], fps=fps,print_fps=True) as cam:
-                cam.send(frame)
-                cam.sleep_until_next_frame()
-
-        except Exception as e:
-            print(e)
-
-
-
-    def capture_frame(self):
-        """Captures a frame from the webcam.
-
-        Returns:
-            The captured frame as a NumPy array, or None on error.
-        """
-        import matplotlib.pyplot as plt
-
-        cap = cv2.VideoCapture(0)  # Change index for different webcams
-
-        if not cap.isOpened():
-            print("Error opening webcam!")
-            return None
-
-        ret, frame = cap.read()
-
-        if not ret:
-            print("Error capturing frame!")
-            cap.release()
-            return None
-        else:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            plt.imshow(frame)
-            plt.show()
-
-        cap.release()
-        

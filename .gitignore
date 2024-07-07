@@ -10,3 +10,4 @@ merged_embeddings.txt
 *.sln
 *.pyproj
 tensorrt-engines/
+.vscode/
