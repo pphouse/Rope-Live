@@ -28,7 +28,7 @@ For a full list of features and details, please visit the original project [page
 **Disclaimer**:
 This repository is only intended for use on Windows (with Nvidia CUDA).
 
-1. Open a folder in file explorer to install Rope. Once you're in that folder, you can right-click it and select, 'Open in Terminal'
+1. Open a folder in file explorer to install Rope in. Once you're in that folder, you can right-click it and select, 'Open in Terminal'
 
 2. Clone the repository to your folder:
 
