@@ -868,7 +868,7 @@ class GUI(tk.Tk):
         #
 
         #Virtual Cam
-        self.widget['VirtualCameraSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'VirtualCameraSwitch', 'Virtual Camera', 3, self.toggle_virtualcam, 'control', 398, 20, 1, row)
+        self.widget['VirtualCameraSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'VirtualCameraSwitch', 'Send Frames to Virtual Camera', 3, self.toggle_virtualcam, 'control', 398, 20, 1, row)
         row += row_delta
 
         # Restore
