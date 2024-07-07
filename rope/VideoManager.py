@@ -649,7 +649,11 @@ class VideoManager():
             img = v2.functional.rotate(img, angle=parameters['OrientSlider'], interpolation=v2.InterpolationMode.BILINEAR, expand=True)
 
         # Find all faces in frame and return a list of 5-pt kpss
-        bboxes, kpss = self.func_w_test("detect", self.models.run_detect, img, parameters['DetectTypeTextSel'], max_num=20, score=parameters['DetectScoreSlider']/100.0, use_landmark_detection=parameters['LandmarksDetectionAdjSwitch'], landmark_detect_mode=parameters["LandmarksDetectTypeTextSel"], landmark_score=parameters["LandmarksDetectScoreSlider"]/100.0, from_points=parameters["LandmarksAlignModeFromPointsSwitch"])
+        if parameters["AutoRotationSwitch"]:
+            rotation_angles = [0, 90, 180, 270]
+        else:
+            rotation_angles = [0]
+        bboxes, kpss = self.func_w_test("detect", self.models.run_detect, img, parameters['DetectTypeTextSel'], max_num=20, score=parameters['DetectScoreSlider']/100.0, use_landmark_detection=parameters['LandmarksDetectionAdjSwitch'], landmark_detect_mode=parameters["LandmarksDetectTypeTextSel"], landmark_score=parameters["LandmarksDetectScoreSlider"]/100.0, from_points=parameters["LandmarksAlignModeFromPointsSwitch"], rotation_angles=rotation_angles)
 
         # Get embeddings for all faces found in the frame
         ret = []
@@ -684,7 +688,7 @@ class VideoManager():
                     # sim between face in video and already found face
                     sim = self.findCosineDistance(fface[1], found_face["Embedding"])
                     # if the face[i] in the frame matches afound face[j] AND the found face is active (not []) 
-                    if sim>=float(parameters["ThresholdSlider"]) and found_face["SourceFaceAssignments"]: 
+                    if sim>=float(parameters["ThresholdSlider"]) and found_face["SourceFaceAssignments"]:
                         s_e = found_face["AssignedEmbedding"]
                         # s_e = found_face['ptrdata']
                         img = self.func_w_test("swap_video", self.swap_core, img, fface[0], s_e, fface[1], parameters, control)
@@ -855,7 +859,8 @@ class VideoManager():
 
         # Optional Scaling # change the thransform matrix
         if parameters['FaceAdjSwitch']:
-            input_face_affined = v2.functional.affine(input_face_affined, 0, (0, 0), 1 + parameters['FaceScaleSlider'] / 100, 0, center=(dim*128-1, dim*128-1), interpolation=v2.InterpolationMode.BILINEAR)
+            #input_face_affined = v2.functional.affine(input_face_affined, 0, (0, 0), 1 + parameters['FaceScaleSlider'] / 100, 0, center=(dim*128-1, dim*128-1), interpolation=v2.InterpolationMode.BILINEAR)
+            input_face_affined = v2.functional.affine(input_face_affined, 0, (0, 0), 1 + parameters['FaceScaleSlider'] / 100, 0, center=(dim*128/2, dim*128/2), interpolation=v2.InterpolationMode.BILINEAR)
 
         itex = 1
         if parameters['StrengthSwitch']:
@@ -1442,7 +1447,7 @@ class VideoManager():
         self.resnet_model = []
         self.detection_model = []
         self.recognition_model = []
-                
+
         # test = swap.permute(1, 2, 0)
         # test = test.cpu().numpy()
         # cv2.imwrite('2.jpg', test) 

@@ -835,7 +835,7 @@ class GUI(tk.Tk):
         self.layer['parameters_canvas'] = tk.Canvas(self.layer['parameter_frame'], style.canvas_frame_label_3, bd=0, width=width)
         self.layer['parameters_canvas'].grid(row=1, column=0, sticky='NEWS', pady=0, padx=0)
 
-        self.layer['parameters_frame'] = tk.Frame(self.layer['parameters_canvas'], style.canvas_frame_label_3, bd=0, width=width, height=1500)
+        self.layer['parameters_frame'] = tk.Frame(self.layer['parameters_canvas'], style.canvas_frame_label_3, bd=0, width=width, height=1490)
         self.layer['parameters_frame'].grid(row=0, column=0, sticky='NEWS', pady=0, padx=0)
 
         self.layer['parameters_canvas'].create_window(0, 0, window = self.layer['parameters_frame'], anchor='nw')
@@ -856,6 +856,10 @@ class GUI(tk.Tk):
         row = 1
         column = 160
 
+        # Providers Priority
+        self.widget['ProvidersPriorityTextSel'] = GE.TextSelection(self.layer['parameters_frame'], 'ProvidersPriorityTextSel', 'Providers Priority', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.72)
+        row += row_delta
+        #
         # Face Swapper Model
         self.widget['FaceSwapperModelTextSel'] = GE.TextSelection(self.layer['parameters_frame'], 'FaceSwapperModelTextSel', 'Face Swapper Model', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.72)
         row += top_border_delta
@@ -891,7 +895,7 @@ class GUI(tk.Tk):
         self.widget['OrientSlider'] = GE.Slider2(self.layer['parameters_frame'], 'OrientSlider', 'Angle', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)
         row += top_border_delta
         self.static_widget['2'] = GE.Separator_x(self.layer['parameters_frame'], 0, row)
-        row += bottom_border_delta 
+        row += bottom_border_delta
 
         # Strength
         self.widget['StrengthSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'StrengthSwitch', 'Strength', 3, self.update_data, 'parameter', 398, 20, 1, row)
@@ -936,7 +940,7 @@ class GUI(tk.Tk):
         self.widget['FaceParserSlider'] = GE.Slider2(self.layer['parameters_frame'], 'FaceParserSlider', 'Background', 3, self.update_data, 'parameter', 200, 20, 1, row, 0.60, 40)
         #Neck
         self.widget['NeckParserSlider'] = GE.Slider2(self.layer['parameters_frame'], 'NeckParserSlider', 'Neck', 3, self.update_data, 'parameter', 200, 20, 200, row, 0.60, 40)
-        
+
         row += row_delta
         #Eyebrows
         self.widget['LeftEyeBrowParserSlider'] = GE.Slider2(self.layer['parameters_frame'], 'LeftEyeBrowParserSlider', 'Left Eyebrow', 3, self.update_data, 'parameter', 200, 20, 1, row, 0.60, 40)
@@ -1013,10 +1017,13 @@ class GUI(tk.Tk):
         self.widget['DetectTypeTextSel'] = GE.TextSelection(self.layer['parameters_frame'], 'DetectTypeTextSel', 'Detection Type', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.62)
         row += row_delta
         self.widget['DetectScoreSlider'] = GE.Slider2(self.layer['parameters_frame'], 'DetectScoreSlider', 'Detect Score', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)
-        
         # Similarity
         row += row_delta
         self.widget['SimilarityTypeTextSel'] = GE.TextSelection(self.layer['parameters_frame'], 'SimilarityTypeTextSel', 'Similarity Type', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.62)
+        #
+        # Auto Rotation
+        row += switch_delta
+        self.widget['AutoRotationSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'AutoRotationSwitch', 'Auto Rotation', 3, self.update_data, 'parameter', 398, 20, 1, row)
         #
         # Face Likeness
         row += switch_delta
@@ -1194,6 +1201,9 @@ class GUI(tk.Tk):
                     self.clear_faces()
                     # reload input faces
                     self.load_input_faces()
+            elif name == "ProvidersPriorityTextSel":
+                self.models.switch_providers_priority(self.parameters[name])
+                self.clear_mem()
             #
         elif mode=='control':
             self.control[name] =  self.widget[name].get()
@@ -1586,7 +1596,11 @@ class GUI(tk.Tk):
 
                         img = img.permute(2,0,1)
                         try:
-                            bboxes, kpss = self.models.run_detect(img, detect_mode=self.parameters["DetectTypeTextSel"], max_num=1, score=0.5, use_landmark_detection=self.parameters['LandmarksDetectionAdjSwitch'], landmark_detect_mode=self.parameters["LandmarksDetectTypeTextSel"], landmark_score=0.5, from_points=self.parameters["LandmarksAlignModeFromPointsSwitch"]) # Just one face here
+                            if self.parameters["AutoRotationSwitch"]:
+                                rotation_angles = [0, 90, 180, 270]
+                            else:
+                                rotation_angles = [0]
+                            bboxes, kpss = self.models.run_detect(img, detect_mode=self.parameters["DetectTypeTextSel"], max_num=1, score=0.5, use_landmark_detection=self.parameters['LandmarksDetectionAdjSwitch'], landmark_detect_mode=self.parameters["LandmarksDetectTypeTextSel"], landmark_score=0.5, from_points=self.parameters["LandmarksAlignModeFromPointsSwitch"], rotation_angles=rotation_angles) # Just one face here
                             kpss = kpss[0]
                         except IndexError:
                             print('Image cropped too close:', file)
@@ -1622,7 +1636,11 @@ class GUI(tk.Tk):
         try:
             img = torch.from_numpy(self.video_image).to('cuda')
             img = img.permute(2,0,1)
-            bboxes, kpss = self.models.run_detect(img, detect_mode=self.parameters["DetectTypeTextSel"], max_num=50, score=self.parameters["DetectScoreSlider"]/100.0, use_landmark_detection=self.parameters['LandmarksDetectionAdjSwitch'], landmark_detect_mode=self.parameters["LandmarksDetectTypeTextSel"], landmark_score=self.parameters["LandmarksDetectScoreSlider"]/100.0, from_points=self.parameters["LandmarksAlignModeFromPointsSwitch"])
+            if self.parameters["AutoRotationSwitch"]:
+                rotation_angles = [0, 90, 180, 270]
+            else:
+                rotation_angles = [0]
+            bboxes, kpss = self.models.run_detect(img, detect_mode=self.parameters["DetectTypeTextSel"], max_num=50, score=self.parameters["DetectScoreSlider"]/100.0, use_landmark_detection=self.parameters['LandmarksDetectionAdjSwitch'], landmark_detect_mode=self.parameters["LandmarksDetectTypeTextSel"], landmark_score=self.parameters["LandmarksDetectScoreSlider"]/100.0, from_points=self.parameters["LandmarksAlignModeFromPointsSwitch"], rotation_angles=rotation_angles)
 
             ret = []
             for face_kps in kpss:

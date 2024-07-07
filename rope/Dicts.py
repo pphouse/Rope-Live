@@ -198,6 +198,10 @@ DEFAULT_DATA = {
 'FaceLikenessSwitchInfoText':       'Face Likeness:\nThis is an experimental feature to perform direct adjustments to likeness of faces.',
 'FaceLikenessSwitchState':           False,
 #
+# Auto Rotation
+'AutoRotationSwitchInfoText':       'Auto Rotation:\nAutomatically Rotate the frames to find the best detection angle',
+'AutoRotationSwitchState':           False,
+#
 'FaceParserSwitchInfoText':         'BACKGROUND MASK:\nAllow the unprocessed background from the orginal image to show in the final swap.',
 'FaceParserSwitchState':            False,
 'MouthParserSwitchInfoText':        'MOUTH MASK:\nAllow the mouth from the original face to show on the swapped face.',
@@ -440,7 +444,7 @@ DEFAULT_DATA = {
 'ThreadsSliderAmount':              5,
 'ThreadsSliderInc':                 1,    
 'ThreadsSliderInfoText':            'EXECUTION THREADS:\nSet number of execution threads while playing and recording. Depends strongly on GPU VRAM. 5 threads for 24GB.',
-'ThreadsSliderMax':                 20,
+'ThreadsSliderMax':                 50,
 'ThreadsSliderMin':                 1,
 'ThresholdSliderAmount':            55,
 'ThresholdSliderInc':               1,
@@ -478,6 +482,11 @@ DEFAULT_DATA = {
 'SimilarityTypeTextSelInfoText':    'Similarity version:\nSelect the similarity to be used with arc face recognizer model.',
 'SimilarityTypeTextSelMode':        'Opal',
 'SimilarityTypeTextSelModes':       ['Opal', 'Pearl', 'Optimal'],
+#
+# ProvidersPriority
+'ProvidersPriorityTextSelInfoText':    'Providers Priority:\nSelect the providers priority to be used with the system.',
+'ProvidersPriorityTextSelMode':        'CUDA',
+'ProvidersPriorityTextSelModes':       ['CUDA', 'TensorRT', 'CPU'],
 #
 # Face Swapper Model
 'FaceSwapperModelTextSelInfoText':  'Face Swapper Model:\nSelect the Face Swapper model.',
