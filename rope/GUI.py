@@ -1203,7 +1203,8 @@ class GUI(tk.Tk):
                     self.load_input_faces()
             elif name == "ProvidersPriorityTextSel":
                 self.models.switch_providers_priority(self.parameters[name])
-                self.clear_mem()
+                self.models.delete_models()
+                torch.cuda.empty_cache()
             #
         elif mode=='control':
             self.control[name] =  self.widget[name].get()
@@ -1448,6 +1449,8 @@ class GUI(tk.Tk):
             for key, value in self.parameters.items():
                 try:
                     self.parameters[key] = temp[key]
+                    if key == "ProvidersPriorityTextSel":
+                        self.models.switch_providers_priority(temp[key])
                 except KeyError:
                     pass
 
@@ -2561,6 +2564,8 @@ class GUI(tk.Tk):
                 # Update the UI
                 for key, value in self.parameters.items():
                     self.widget[key].set(value, request_frame=False)
+                    if key == "ProvidersPriorityTextSel":
+                        self.models.switch_providers_priority(value)
 
             self.add_action('parameters', self.parameters)            
             self.add_action('control', self.control)
