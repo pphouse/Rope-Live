@@ -1933,7 +1933,7 @@ class GUI(tk.Tk):
         self.widget['AutoSwapButton'].toggle_button()
 
 
-    def load_target(self, button, media_file, media_type):
+    def load_target(self, button, media_file, media_type,):
         # Make sure the video stops playing
         self.toggle_play_video('stop')
         self.image_loaded = False

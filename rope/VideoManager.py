@@ -147,6 +147,10 @@ class VideoManager():
             self.virtcam.close()
         self.virtcam = False
         # print("Disable hello")
+    def webcam_selected(self, file):
+        if ('Webcam' in file) and len(file)==8:
+            return True
+        return False
 
     def load_target_video( self, file ):
         # If we already have a video loaded, release it
@@ -160,7 +164,7 @@ class VideoManager():
             
         # Open file   
         self.video_file = file
-        if 'Webcam' in file:
+        if self.webcam_selected(file):
             webcam_index = int(file[-1])
             self.capture = cv2.VideoCapture(webcam_index, cv2.CAP_DSHOW)
             self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
@@ -187,17 +191,17 @@ class VideoManager():
 
         
         if not self.capture.isOpened():
-            if 'Webcam' in file:
+            if self.webcam_selected(file):
                 print("Cannot open file: ", file)
             
         else:
             self.target_video = file
             self.is_video_loaded = True
             self.is_image_loaded = False
-            if 'Webcam' not in file:
+            if not self.webcam_selected(file):
                 self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
             else:
-                self.video_frame_total = 9999999
+                self.video_frame_total = 99999999
             self.play = False 
             self.current_frame = 0
             self.frame_timer = time.time()
@@ -512,62 +516,64 @@ class VideoManager():
             
             if index != -1:
 
+                if not self.webcam_selected(self.video_file):
+
                 # If the swapper thread has finished generating a frame
-                if self.process_qs[index]['Status'] == 'finished':
-                    image = self.process_qs[index]['ProcessedFrame']  
-                    
-                    if self.parameters['RecordTypeTextSel']=='FFMPEG':
-
-                        pil_image = Image.fromarray(image)
-                        pil_image.save(self.sp.stdin, 'BMP')   
-                    
-                    elif self.parameters['RecordTypeTextSel']=='OPENCV':
-                        self.sp.write(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-
-                    temp = [image, self.process_qs[index]['FrameNumber']]
-                    self.frame_q.append(temp)
-
-                    # Close video and process
-                    if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:
-                        self.play_video("stop")
-                        stop_time = float(self.capture.get(cv2.CAP_PROP_POS_FRAMES) / float(self.fps))
-                        if stop_time == 0:
-                            stop_time = float(self.video_frame_total) / float(self.fps)
+                    if self.process_qs[index]['Status'] == 'finished':
+                        image = self.process_qs[index]['ProcessedFrame']  
                         
                         if self.parameters['RecordTypeTextSel']=='FFMPEG':
-                            self.sp.stdin.close()
-                            self.sp.wait()
-                        elif self.parameters['RecordTypeTextSel']=='OPENCV':    
-                            self.sp.release()
 
-                        orig_file = self.target_video
-                        final_file = self.output+self.file_name[1]
-                        print("adding audio...")    
-                        args = ["ffmpeg",
-                                '-hide_banner',
-                                '-loglevel',    'error',
-                                "-i", self.temp_file,
-                                "-ss", str(self.start_time), "-to", str(stop_time), "-i",  orig_file,
-                                "-c",  "copy", # may be c:v
-                                "-map", "0:v:0", "-map", "1:a:0?",
-                                "-shortest",
-                                final_file]
+                            pil_image = Image.fromarray(image)
+                            pil_image.save(self.sp.stdin, 'BMP')   
                         
-                        four = subprocess.run(args)
-                        os.remove(self.temp_file)
+                        elif self.parameters['RecordTypeTextSel']=='OPENCV':
+                            self.sp.write(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
-                        timef= time.time() - self.timer 
-                        self.record = False
-                        print('Video saved as:', final_file)
-                        msg = "Total time: %s s." % (round(timef,1))
-                        print(msg)
+                        temp = [image, self.process_qs[index]['FrameNumber']]
+                        self.frame_q.append(temp)
 
-                        
-                    self.total_thread_time = []
-                    self.process_qs[index]['Status'] = 'clear'
-                    self.process_qs[index]['FrameNumber'] = []
-                    self.process_qs[index]['Thread'] = []
-                    self.frame_timer = time.time()
+                        # Close video and process
+                        if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:
+                            self.play_video("stop")
+                            stop_time = float(self.capture.get(cv2.CAP_PROP_POS_FRAMES) / float(self.fps))
+                            if stop_time == 0:
+                                stop_time = float(self.video_frame_total) / float(self.fps)
+                            
+                            if self.parameters['RecordTypeTextSel']=='FFMPEG':
+                                self.sp.stdin.close()
+                                self.sp.wait()
+                            elif self.parameters['RecordTypeTextSel']=='OPENCV':    
+                                self.sp.release()
+
+                            orig_file = self.target_video
+                            final_file = self.output+self.file_name[1]
+                            print("adding audio...")    
+                            args = ["ffmpeg",
+                                    '-hide_banner',
+                                    '-loglevel',    'error',
+                                    "-i", self.temp_file,
+                                    "-ss", str(self.start_time), "-to", str(stop_time), "-i",  orig_file,
+                                    "-c",  "copy", # may be c:v
+                                    "-map", "0:v:0", "-map", "1:a:0?",
+                                    "-shortest",
+                                    final_file]
+                            
+                            four = subprocess.run(args)
+                            os.remove(self.temp_file)
+
+                            timef= time.time() - self.timer 
+                            self.record = False
+                            print('Video saved as:', final_file)
+                            msg = "Total time: %s s." % (round(timef,1))
+                            print(msg)
+
+                            
+                        self.total_thread_time = []
+                        self.process_qs[index]['Status'] = 'clear'
+                        self.process_qs[index]['FrameNumber'] = []
+                        self.process_qs[index]['Thread'] = []
+                        self.frame_timer = time.time()
     # @profile
     def thread_video_read(self, frame_number):  
         with lock:
