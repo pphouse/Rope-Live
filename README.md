@@ -41,10 +41,10 @@ cd Rope-Live
 
 ```
 # create a conda venv with the correct python version
-conda create -n Rope-Live python=3.10.13
+conda create -n Rope python=3.10.13
 
 # activate the virtual environment
-conda activate Rope-Live
+conda activate Rope
 
 # install the dependencies
 conda install conda-forge::cuda-runtime=11.8.0 cudnn=8.9.2.26 conda-forge::gputil=1.4.0
