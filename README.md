@@ -1,5 +1,5 @@
 
-This is a fork of the original project [Rope](https://github.com/Hillobar/Rope/) by Hillobar focusing on implementing features for live swapping using Webcam and for live streaming the swapped videos.
+This is a fork of the original [Rope](https://github.com/Hillobar/Rope/) project by Hillobar. We focus on implementing features for live swapping using Webcam and for live streaming the swapped videos using virtual camera.
 
 For a full list of features and details, please visit the original project [page](https://github.com/Hillobar/Rope/)
 
