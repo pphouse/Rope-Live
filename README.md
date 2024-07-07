@@ -1,5 +1,5 @@
 
-This is a fork of the original [Rope](https://github.com/Hillobar/Rope/) project by Hillobar. We focus on implementing features for live swapping using Webcam and for live streaming the swapped videos using virtual camera.
+This is a fork of the [Rope](https://github.com/Hillobar/Rope/) project (by Hillobar), which focus on implementing features for live swapping using Webcam and for live streaming the swapped videos using virtual camera.
 
 For a full list of features and details, please visit the original project [page](https://github.com/Hillobar/Rope/)
 
@@ -17,7 +17,11 @@ For a full list of features and details, please visit the original project [page
   * [Miniconda](https://docs.anaconda.com/miniconda/)
   * [OBS Studio](https://obsproject.com/)
   * [FFMPEG](https://www.ffmpeg.org/download.html)
-    
+
+## Screenshots
+
+![](https://i.ibb.co/fCLSjt0/Screenshot-609.png)
+
 
 ## Installation
 
