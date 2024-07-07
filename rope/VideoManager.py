@@ -21,13 +21,17 @@ onnxruntime.set_default_logger_severity(4)
 import rope.FaceUtil as faceutil
 
 import inspect #print(inspect.currentframe().f_back.f_code.co_name, 'resize_image')
-
+import pyvirtualcam
 device = 'cuda'
+
+# cap = cv2.VideoCapture(0)
+# cap_virt = pyvirtualcam.Camera(width=1920, height=1080, fps=1)
 
 lock=threading.Lock()
 
 class VideoManager():  
     def __init__(self, models ):
+        self.virtcam = False
         self.models = models
         # Model related
         self.swapper_model = []             # insightface swapper model
@@ -130,25 +134,70 @@ class VideoManager():
     def assign_found_faces(self, found_faces):
         self.found_faces = found_faces
 
+    def enable_virtualcam(self):
+        #Check if capture contains any cv2 stream or is it an empty list
+        if not isinstance(self.capture, (list)):
+            vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)) 
+            print(vid_height, vid_width)
+            self.disable_virtualcam()
+            self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
+    def disable_virtualcam(self):
+        if self.virtcam:
+            self.virtcam.close()
+        self.virtcam = False
+        # print("Disable hello")
 
     def load_target_video( self, file ):
         # If we already have a video loaded, release it
         if self.capture:
             self.capture.release()
+        
+        if self.control['VirtualCameraSwitch']:
+            self.add_action("set_virtual_cam_toggle_disable",None)
+            self.disable_virtualcam()
+
             
         # Open file   
         self.video_file = file
-        self.capture = cv2.VideoCapture(file)
-        self.fps = self.capture.get(cv2.CAP_PROP_FPS)
+        if 'Webcam' in file:
+            webcam_index = int(file[-1])
+            self.capture = cv2.VideoCapture(webcam_index, cv2.CAP_DSHOW)
+            self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            self.fps = 30
+
+        else:
+            self.capture = cv2.VideoCapture(file)
+            self.fps = self.capture.get(cv2.CAP_PROP_FPS)
+
+        # if self.control['VirtualCameraSwitch']:
+        #     try:
+        #         self.enable_virtualcam()
+        #     except Exception as e:
+        #         print(e)
+        #         print(self.control)
+        # else:
+        #     try:
+        #         self.disable_virtualcam()
+        #     except Exception as e:
+        #         print(e)
+        #         print(self.control)
+
+
         
         if not self.capture.isOpened():
-            print("Cannot open file: ", file)
+            if 'Webcam' in file:
+                print("Cannot open file: ", file)
             
         else:
             self.target_video = file
             self.is_video_loaded = True
             self.is_image_loaded = False
-            self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            if 'Webcam' not in file:
+                self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            else:
+                self.video_frame_total = 9999999
             self.play = False 
             self.current_frame = 0
             self.frame_timer = time.time()
@@ -425,10 +474,24 @@ class VideoManager():
             if index != -1:
                 if self.process_qs[index]['Status'] == 'finished':
                     temp = [self.process_qs[index]['ProcessedFrame'], self.process_qs[index]['FrameNumber']]
+
                     self.frame_q.append(temp)
 
                     # Report fps, other data
                     self.fps_average.append(1.0/time_diff)
+                    avg_fps = self.fps / self.fps_average[-1] if self.fps_average else 10
+
+                    # self.send_to_virtual_camera(temp[0], 15)
+                    if self.control['VirtualCameraSwitch'] and self.virtcam:
+                        # print("virtcam",self.virtcam)
+                        try:
+                            # self.virtcam.send(cv2.resize(temp[0], (640,480), interpolation=cv2.INTER_CUBIC) )
+                            # self.virtcam.send(cv2.flip(temp[0],1),)
+                            self.virtcam.send(temp[0])
+
+                            self.virtcam.sleep_until_next_frame()
+                        except Exception as e:
+                            print(e)
                     if len(self.fps_average) >= floor(self.fps):
                         fps = round(np.average(self.fps_average), 2)
                         msg = "%s fps, %s process time" % (fps, round(self.process_qs[index]['ThreadTime'], 4))
@@ -454,6 +517,7 @@ class VideoManager():
                     image = self.process_qs[index]['ProcessedFrame']  
                     
                     if self.parameters['RecordTypeTextSel']=='FFMPEG':
+
                         pil_image = Image.fromarray(image)
                         pil_image.save(self.sp.stdin, 'BMP')   
                     
@@ -527,6 +591,8 @@ class VideoManager():
 
     # @profile
     def swap_video(self, target_image, frame_number, use_markers):
+        # success, target_image = self.webcam.read()
+        # self.capture_frame()
         # Grab a local copy of the parameters to prevent threading issues
         parameters = self.parameters.copy()
         control = self.control.copy()
@@ -680,7 +746,6 @@ class VideoManager():
                                 except:
                                     print("Key-points value {} exceed the image size {}.".format(kpoint, (img_x, img_y)))
                                     continue
-
         return img.astype(np.uint8)
 
     def findCosineDistance(self, vector1, vector2):

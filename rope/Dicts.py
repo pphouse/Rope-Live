@@ -217,6 +217,9 @@ DEFAULT_DATA = {
 'CLIPSwitchInfoText':               'TEXT MASKING:\nUse descriptions to identify objects that will be present in the final swapped image.',
 'CLIPSwitchState':                  False,
 
+'VirtualCameraSwitchState':         False,
+'VirtualCameraSwitchInfoText':      'VIRTUAL CAMERA:\nFeed the swapped video output to virtual camera for using in external applications',
+
 # Sliders
 'BlendSliderAmount':                5,
 'BlendSliderInc':                   1,  

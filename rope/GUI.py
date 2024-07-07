@@ -866,6 +866,11 @@ class GUI(tk.Tk):
         self.static_widget['9'] = GE.Separator_x(self.layer['parameters_frame'], 0, row)
         row += bottom_border_delta
         #
+
+        #Virtual Cam
+        self.widget['VirtualCameraSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'VirtualCameraSwitch', 'Virtual Camera', 3, self.toggle_virtualcam, 'control', 398, 20, 1, row)
+        row += row_delta
+
         # Restore
         self.widget['RestorerSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'RestorerSwitch', 'Restorer', 3, self.update_data, 'parameter', 398, 20, 1, row)
         row += switch_delta
@@ -1803,13 +1808,29 @@ class GUI(tk.Tk):
         # face['ptrdata'] = self.models.run_swap_stg1(latent)
 
 
-
     def populate_target_videos(self):
+        videos = []
+        #Webcam setup
+        try:
+            for i in range(1):
+                camera_capture = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                success, webcam_frame = camera_capture.read() 
+                ratio = float(webcam_frame.shape[0]) / webcam_frame.shape[1]
+
+                new_height = 50
+                new_width = int(new_height / ratio)
+                webcam_frame = cv2.resize(webcam_frame, (new_width, new_height))
+                webcam_frame = cv2.cvtColor(webcam_frame, cv2.COLOR_BGR2RGB)
+                webcam_frame[:new_height, :new_width, :] = webcam_frame
+                videos.append([webcam_frame, f'Webcam {i}'])
+                camera_capture.release()
+        except:
+            pass
+
         # Recursively read all media files from directory
         directory =  self.json_dict["source videos"]
         filenames = [os.path.join(dirpath,f) for (dirpath, dirnames, filenames) in os.walk(directory) for f in filenames]
 
-        videos = []
         images = []
         self.target_media = []
         self.target_media_buttons = []
@@ -2111,6 +2132,10 @@ class GUI(tk.Tk):
     def set_player_buttons_to_inactive(self):
         self.widget['TLRecButton'].disable_button()
         self.widget['TLPlayButton'].disable_button()
+
+
+    def set_virtual_cam_toggle_disable(self):
+        self.widget['VirtualCameraSwitch'].toggle_switch(False)
 
 
     def toggle_swapper(self, toggle_value=-1):
@@ -2558,3 +2583,11 @@ class GUI(tk.Tk):
         print(np.dot(vector1, vector2))
 
         return cos_dist
+    
+    def toggle_virtualcam(self, mode, name, use_markers=False):
+        self.control[name] =  self.widget[name].get()
+        self.add_action('control', self.control)
+        if self.control[name]:
+            self.add_action('enable_virtualcam')
+        else:
+            self.add_action('disable_virtualcam')
