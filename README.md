@@ -10,8 +10,6 @@ For a full list of features and details, please visit the original project [page
 * Supports sending the swapped video as Virtual Camera output (in realtime) which can be used in external applications like Google Meet, Zoom, Twitch etc..
 * Integrates Rope with OBS Studio for real-time recording with microphone or computer audio
 
-In this entry of the wiki we will discuss the setup and usage instructions for Rope.  It will guide from start to a face-swapped video.
-
 ## Requirements
   * Windows 10 or 11
   * Nvidia GPU with CUDA Support
@@ -32,17 +30,17 @@ This repository is only intended for use on Windows (with Nvidia CUDA).
 
 ```
 git clone https://github.com/argenspin/Rope-Live.git
-cd Rope
+cd Rope-Live
 ```
 
 3. Create a new conda env and install required libraries
 
 ```
 # create a conda venv with the correct python version
-conda create -n Rope python=3.10.13
+conda create -n Rope-Live python=3.10.13
 
 # activate the virtual environment
-conda activate Rope
+conda activate Rope-Live
 
 # install the dependencies
 conda install conda-forge::cuda-runtime=11.8.0 cudnn=8.9.2.26 conda-forge::gputil=1.4.0
@@ -53,14 +51,18 @@ python -m pip install -r requirements.txt
 
 
 
-4. Download and install 3rd-party dependencies
-- Install the models
+4. Download the required models
   
-    - **To get access to all the features of Rope**, you need to [download the models from here](https://1drv.ms/f/c/f07a89314d38026c/Enes7ZCoMdJEu2XY5ZsDQYwBRgR3J6Cgry3R7LMHm4bz_Q?e=Pbhhzc). You need all of the files.
+   - **To get access to all the features of Rope**, you need to [download the models from here](https://1drv.ms/f/c/f07a89314d38026c/Enes7ZCoMdJEu2XY5ZsDQYwBRgR3J6Cgry3R7LMHm4bz_Q?e=Pbhhzc). You need all of the files.
   
-    - Place the downloaded model files in the `Rope-Live/models` folder
+   - Place the downloaded model files in the `Rope-Live/models` folder
 
-5. Start the application by running Rope.bat file
+5. Set up OBS Virtual Camera
+   - Start OBS.
+   - Click "Start Virtual Camera" (bottom right), then "Stop Virtual Camera".
+   - Close OBS.
+
+7. Start the application by running ***Rope.bat*** file
   
 
 
