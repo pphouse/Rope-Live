@@ -175,20 +175,6 @@ class VideoManager():
             self.capture = cv2.VideoCapture(file)
             self.fps = self.capture.get(cv2.CAP_PROP_FPS)
 
-        # if self.control['VirtualCameraSwitch']:
-        #     try:
-        #         self.enable_virtualcam()
-        #     except Exception as e:
-        #         print(e)
-        #         print(self.control)
-        # else:
-        #     try:
-        #         self.disable_virtualcam()
-        #     except Exception as e:
-        #         print(e)
-        #         print(self.control)
-
-
         
         if not self.capture.isOpened():
             if self.webcam_selected(file):
