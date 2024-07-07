@@ -10,5 +10,8 @@ merged_embeddings_bak.txt
 .vs
 *.sln
 *.pyproj
-tensorrt-engines/
+*.engine
+*.profile
+*.onnx
+*.timing
 .vscode/
