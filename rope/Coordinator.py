@@ -56,7 +56,14 @@ def coordinator():
             action.pop(0)
         elif action[0][0] == "get_requested_image":
             vm.get_requested_image()
-            action.pop(0)            
+            action.pop(0)  
+        elif action[0][0] == "enable_virtualcam":
+            vm.enable_virtualcam()      
+            action.pop(0)  
+        elif action[0][0] == "disable_virtualcam":
+            vm.disable_virtualcam() 
+            action.pop(0)  
+
         # elif action[0][0] == "swap":
         #     vm.swap = action[0][1]
         #     action.pop(0)
@@ -104,7 +111,14 @@ def coordinator():
         # From VM    
         elif action[0][0] == "stop_play":
             gui.set_player_buttons_to_inactive()
-            action.pop(0)        
+            action.pop(0)   
+
+        elif action[0][0] == "set_virtual_cam_toggle_disable":
+            gui.set_virtual_cam_toggle_disable()
+            action.pop(0)    
+        elif action[0][0] == "disable_record_button":
+            gui.disable_record_button()
+            action.pop(0)  
         
         elif action[0][0] == "set_slider_length":
             gui.set_video_slider_length(action[0][1])
@@ -113,7 +127,11 @@ def coordinator():
         elif action[0][0] == "update_markers_canvas":
             gui.update_markers_canvas()
             action.pop(0)        
-          
+
+        # Face Landmarks
+        elif action[0][0] == "face_landmarks":
+            vm.face_landmarks = action[0][1]
+            action.pop(0)
             
         else:
             print("Action not found: "+action[0][0]+" "+str(action[0][1]))

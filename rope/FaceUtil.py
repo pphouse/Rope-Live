@@ -8,6 +8,34 @@ torchvision.disable_beta_transforms_warning()
 from torchvision.transforms import v2
 from numpy.linalg import norm as l2norm
 
+# <--left profile
+src1 = np.array([[51.642, 50.115], [57.617, 49.990], [35.740, 69.007],
+                 [51.157, 89.050], [57.025, 89.702]],
+                dtype=np.float32)
+
+# <--left
+src2 = np.array([[45.031, 50.118], [65.568, 50.872], [39.677, 68.111],
+                 [45.177, 86.190], [64.246, 86.758]],
+                dtype=np.float32)
+
+# ---frontal
+src3 = np.array([[39.730, 51.138], [72.270, 51.138], [56.000, 68.493],
+                 [42.463, 87.010], [69.537, 87.010]],
+                dtype=np.float32)
+
+# -->right
+src4 = np.array([[46.845, 50.872], [67.382, 50.118], [72.737, 68.111],
+                 [48.167, 86.758], [67.236, 86.190]],
+                dtype=np.float32)
+
+# -->right profile
+src5 = np.array([[54.796, 49.990], [60.771, 50.115], [76.673, 69.007],
+                 [55.388, 89.702], [61.257, 89.050]],
+                dtype=np.float32)
+
+src = np.array([src1, src2, src3, src4, src5])
+src_map = {112: src, 224: src * 2}
+
 arcface_src = np.array(
     [[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366],
      [41.5493, 92.3655], [70.7299, 92.2041]],
@@ -40,7 +68,7 @@ def transform(img, center, output_size, scale, rotation):
     t = t1 + t2 + t3 + t4
     M = t.params[0:2]
 
-    cropped = v2.functional.affine(img, t.rotation, (t.translation[0], t.translation[1]) , t.scale, 0, interpolation=v2.InterpolationMode.BILINEAR, center = (0,0) )
+    cropped = v2.functional.affine(img, np.rad2deg(t.rotation), (t.translation[0], t.translation[1]) , t.scale, 0, interpolation=v2.InterpolationMode.BILINEAR, center = (0,0) )
     cropped = v2.functional.crop(cropped, 0,0, output_size, output_size)
 
     return cropped, M
@@ -133,6 +161,186 @@ def matrix2angle(R):
     rx, ry, rz = x*180/np.pi, y*180/np.pi, z*180/np.pi
     return rx, ry, rz
 
+def warp_affine_torchvision(img, matrix, image_size, rotation_ratio=0.0, border_value=0.0, border_mode='replicate', interpolation_value=v2.functional.InterpolationMode.NEAREST, device='cpu'):
+    # Ensure image_size is a tuple (width, height)
+    if isinstance(image_size, int):
+        image_size = (image_size, image_size)
+
+    # Ensure the image tensor is on the correct device and of type float
+    if isinstance(img, torch.Tensor):
+        img_tensor = img.to(device).float()
+        if img_tensor.dim() == 3:  # If no batch dimension, add one
+            img_tensor = img_tensor.unsqueeze(0)
+    else:
+        img_tensor = torch.from_numpy(img).unsqueeze(0).permute(0, 3, 1, 2).float().to(device)
+
+    # Extract the translation parameters from the affine matrix
+    t = trans.SimilarityTransform()
+    t.params[0:2] = matrix
+    
+    # Define default rotation
+    rotation = t.rotation
+
+    if rotation_ratio != 0:
+        rotation *=rotation_ratio  # Rotation in degrees
+
+    # Convert border mode
+    if border_mode == 'replicate':
+        fill = [border_value] * img_tensor.shape[1]  # Same value for all channels
+    elif border_mode == 'constant':
+        fill = [border_value] * img_tensor.shape[1]  # Same value for all channels
+    else:
+        raise ValueError("Unsupported border_mode. Use 'replicate' or 'constant'.")
+
+    # Apply the affine transformation
+    warped_img_tensor = v2.functional.affine(img_tensor, angle=rotation, translate=(t.translation[0], t.translation[1]), scale=t.scale, shear=(0.0, 0.0), interpolation=interpolation_value, center=(0, 0), fill=fill)
+
+    # Crop the image to the desired size
+    warped_img_tensor = v2.functional.crop(warped_img_tensor, 0,0, image_size[1], image_size[0])
+
+    return warped_img_tensor.squeeze(0)
+
+def umeyama(src, dst, estimate_scale):
+    num = src.shape[0]
+    dim = src.shape[1]
+    src_mean = src.mean(axis=0)
+    dst_mean = dst.mean(axis=0)
+    src_demean = src - src_mean
+    dst_demean = dst - dst_mean
+    A = np.dot(dst_demean.T, src_demean) / num
+    d = np.ones((dim,), dtype=np.double)
+    if np.linalg.det(A) < 0:
+        d[dim - 1] = -1
+    T = np.eye(dim + 1, dtype=np.double)
+    U, S, V = np.linalg.svd(A)
+    rank = np.linalg.matrix_rank(A)
+    if rank == 0:
+        return np.nan * T
+    elif rank == dim - 1:
+        if np.linalg.det(U) * np.linalg.det(V) > 0:
+            T[:dim, :dim] = np.dot(U, V)
+        else:
+            s = d[dim - 1]
+            d[dim - 1] = -1
+            T[:dim, :dim] = np.dot(U, np.dot(np.diag(d), V))
+            d[dim - 1] = s
+    else:
+        T[:dim, :dim] = np.dot(U, np.dot(np.diag(d), V.T))
+    if estimate_scale:
+        scale = 1.0 / src_demean.var(axis=0).sum() * np.dot(S, d)
+    else:
+        scale = 1.0
+    T[:dim, dim] = dst_mean - scale * np.dot(T[:dim, :dim], src_mean.T)
+    T[:dim, :dim] *= scale
+    return T
+
+def get_matrix(lmk, templates):
+    if templates.shape[0] == 1:
+        return umeyama(lmk, templates[0], True)[0:2, :]
+    test_lmk = np.insert(lmk, 2, values=np.ones(5), axis=1)
+    min_error, best_matrix = float("inf"), []
+    for i in np.arange(templates.shape[0]):
+        matrix = umeyama(lmk, templates[i], True)[0:2, :]
+        error = np.sum(
+            np.sqrt(np.sum((np.dot(matrix, test_lmk.T).T - templates[i]) ** 2, axis=1))
+        )
+        if error < min_error:
+            min_error, best_matrix = error, matrix
+    return best_matrix
+
+def align_crop(img, lmk, image_size, mode='arcfacemap', interpolation=v2.InterpolationMode.NEAREST):
+    if mode != 'arcfacemap':
+        if mode == 'arcface112':
+            templates = float(image_size) / 112.0 * arcface_src
+        else:
+            factor = float(image_size) / 128.0
+            templates = arcface_src * factor
+            templates[:, 0] += (factor * 8.0)
+    else:
+        templates = float(image_size) / 112.0 * src_map[112]
+
+    matrix = get_matrix(lmk, templates)
+    '''
+    warped = cv2.warpAffine(
+        img,
+        matrix,
+        (image_size, image_size),
+        borderValue=0.0,
+        borderMode=cv2.BORDER_REPLICATE,
+    )
+    '''
+    warped = warp_affine_torchvision(img, matrix, (image_size, image_size), rotation_ratio=57.2958, border_value=0.0, border_mode='replicate', interpolation_value=v2.functional.InterpolationMode.NEAREST, device='cuda')
+
+    return warped, matrix
+
+def get_arcface_template(image_size=112, mode='arcface112'):
+    if mode=='arcface112':
+        template = float(image_size) / 112.0 * arcface_src
+    elif mode=='arcface128':
+        factor = float(image_size) / 128.0
+        template = arcface_src * factor
+        template[:, 0] += (factor * 8.0)
+    else:
+        template = float(image_size) / 112.0 * src_map[112]
+
+    return template
+
+# lmk is prediction; src is template
+def estimate_norm_arcface_template(lmk, src=arcface_src):
+    assert lmk.shape == (5, 2)
+    tform = trans.SimilarityTransform()
+    lmk_tran = np.insert(lmk, 2, values=np.ones(5), axis=1)
+    min_M = []
+    min_index = []
+    min_error = float('inf')
+            
+    for i in np.arange(src.shape[0]):
+        tform.estimate(lmk, src[i])
+        M = tform.params[0:2, :]
+        results = np.dot(M, lmk_tran.T)
+        results = results.T
+        error = np.sum(np.sqrt(np.sum((results - src[i])**2, axis=1)))
+        #print((error, min_error))
+        if error < min_error:
+            min_error = error
+            min_M = M
+            min_index = i
+    #print(src[min_index])
+    return min_M, min_index
+
+# lmk is prediction; src is template
+def estimate_norm(lmk, image_size=112, mode='arcface112'):
+    assert lmk.shape == (5, 2)
+    tform = trans.SimilarityTransform()
+    lmk_tran = np.insert(lmk, 2, values=np.ones(5), axis=1)
+    min_M = []
+    min_index = []
+    min_error = float('inf')
+
+    if mode != 'arcfacemap':
+        if mode == 'arcface112':
+            src = float(image_size) / 112.0 * arcface_src
+        else:
+            factor = float(image_size) / 128.0
+            src = arcface_src * factor
+            src[:, 0] += (factor * 8.0)
+    else:
+        src = float(image_size) / 112.0 * src_map[112]
+            
+    for i in np.arange(src.shape[0]):
+        tform.estimate(lmk, src[i])
+        M = tform.params[0:2, :]
+        results = np.dot(M, lmk_tran.T)
+        results = results.T
+        error = np.sum(np.sqrt(np.sum((results - src[i])**2, axis=1)))
+        #print((error, min_error))
+        if error < min_error:
+            min_error = error
+            min_M = M
+            min_index = i
+    #print(src[min_index])
+    return min_M, min_index
+
 def warp_face_by_bounding_box(img, bboxes, image_size=112):
     # pad image by image size
     img = pad_image_by_size(img, image_size)
@@ -154,12 +362,11 @@ def warp_face_by_bounding_box(img, bboxes, image_size=112):
 
     return img, M
 
-def warp_face_by_face_landmark_5(img, kpss, image_size=112, normalized = False, interpolation=v2.InterpolationMode.BILINEAR, custom_arcface_src = None):
+def warp_face_by_face_landmark_5(img, kpss, image_size=112, mode='arcface112', interpolation=v2.InterpolationMode.NEAREST):
     # pad image by image size
     img = pad_image_by_size(img, image_size)
 
-    M, pose_index = estimate_norm(kpss, image_size, normalized, custom_arcface_src)
-    #warped = cv2.warpAffine(img, M, (image_size, image_size), borderValue=0.0)
+    M, pose_index = estimate_norm(kpss, image_size, mode=mode)
     t = trans.SimilarityTransform()
     t.params[0:2] = M
     img = v2.functional.affine(img, t.rotation*57.2958, (t.translation[0], t.translation[1]) , t.scale, 0, interpolation=interpolation, center = (0, 0) )
@@ -167,40 +374,22 @@ def warp_face_by_face_landmark_5(img, kpss, image_size=112, normalized = False, 
 
     return img, M
 
-# lmk is prediction; src is template
-def estimate_norm(lmk, image_size=112, normalized = False, custom_arcface_src = None):
-    assert lmk.shape == (5, 2)
-    tform = trans.SimilarityTransform()
-    lmk_tran = np.insert(lmk, 2, values=np.ones(5), axis=1)
-    min_M = []
-    min_index = []
-    min_error = float('inf')
+def getRotationMatrix2D(center, output_size, scale, rotation, is_clockwise = True):
+    scale_ratio = scale
+    if not is_clockwise:
+        rotation = -rotation
+    rot = float(rotation) * np.pi / 180.0
+    t1 = trans.SimilarityTransform(scale=scale_ratio)
+    cx = center[0] * scale_ratio
+    cy = center[1] * scale_ratio
+    t2 = trans.SimilarityTransform(translation=(-1 * cx, -1 * cy))
+    t3 = trans.SimilarityTransform(rotation=rot)
+    t4 = trans.SimilarityTransform(translation=(output_size / 2,
+                                                output_size / 2))
+    t = t1 + t2 + t3 + t4
+    M = t.params[0:2]
 
-    if custom_arcface_src is None:
-        if normalized == False:
-            if image_size == 112:
-                src = arcface_src
-            else:
-                src = float(image_size) / 112.0 * arcface_src
-        else:
-            factor = float(image_size) / 128.0
-            src = arcface_src * factor
-            src[:, 0] += (factor * 8.0)
-    else:
-        src = custom_arcface_src
-
-    for i in np.arange(src.shape[0]):
-        tform.estimate(lmk, src[i])
-        M = tform.params[0:2, :]
-        results = np.dot(M, lmk_tran.T)
-        results = results.T
-        error = np.sum(np.sqrt(np.sum((results - src[i])**2, axis=1)))
-        #         print(error)
-        if error < min_error:
-            min_error = error
-            min_M = M
-            min_index = i
-    return min_M, min_index
+    return M
 
 def invertAffineTransform(M):
     t = trans.SimilarityTransform()
@@ -361,7 +550,7 @@ def convert_face_landmark_478_to_5(face_landmark_478):
 
     return face_landmark_5
 
-def test_bbox_landmarks(img, bbox, kpss):
+def test_bbox_landmarks(img, bbox, kpss, caption='image', show_kpss_label=False):
         image = img.permute(1,2,0).to('cpu').numpy().copy()
         if len(bbox) > 0:
             box = bbox.astype(int)
@@ -374,15 +563,34 @@ def test_bbox_landmarks(img, bbox, kpss):
                 color = (0, 0, 255)
                 cv2.circle(image, (kps[0], kps[1]), 1, color,
                            2)
+                if show_kpss_label:
+                    match i:
+                        case 0:
+                            text = "LE"
+                        case 1:
+                            text = "RE"
+                        case 2:
+                            text = "NO"
+                        case 3:
+                            text = "LM"
+                        case 4:
+                            text = "RM"
+                    image = cv2.putText(image, text, (kps[0], kps[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA, False) 
 
-        cv2.imshow('image', image) 
+        cv2.imshow(caption, image) 
         cv2.waitKey(0)         
         cv2.destroyAllWindows()
 
-def test_multi_bbox_landmarks(img, bboxes, kpss):
+def test_multi_bbox_landmarks(img, bboxes, kpss, caption='image', show_kpss_label=False):
     if len(bboxes) > 0 and len(kpss) > 0:
         for i in range(np.array(kpss).shape[0]):
-            test_bbox_landmarks(img, bboxes[i], kpss[i])
+            test_bbox_landmarks(img, bboxes[i], kpss[i], caption=caption, show_kpss_label=show_kpss_label)
+    elif len(bboxes) > 0:
+        for i in range(np.array(bboxes).shape[0]):
+            test_bbox_landmarks(img, bboxes[i], [], caption=caption, show_kpss_label=show_kpss_label)
+    elif len(kpss) > 0:
+        for i in range(np.array(kpss).shape[0]):
+            test_bbox_landmarks(img, [], kpss[i], caption=caption, show_kpss_label=show_kpss_label)
 
 def detect_img_color(img):
     frame = img.permute(1,2,0)
@@ -403,3 +611,14 @@ def detect_img_color(img):
         return 'GBR'
 
     return 'RGB'
+
+def get_face_orientation(face_size, lmk):
+    assert lmk.shape == (5, 2)
+    tform = trans.SimilarityTransform()
+    src = np.squeeze(arcface_src, axis=0)
+    src = float(face_size) / 112.0 * src
+    tform.estimate(lmk, src)
+
+    angle_deg_to_front = np.rad2deg(tform.rotation)
+
+    return angle_deg_to_front

@@ -6,6 +6,9 @@ models/*.onnx
 saved_parameters.json
 data.json
 merged_embeddings.txt
+merged_embeddings_bak.txt
 .vs
 *.sln
 *.pyproj
+tensorrt-engines/
+.vscode/

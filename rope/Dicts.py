@@ -182,13 +182,25 @@ DEFAULT_DATA = {
 'DiffSwitchState':                  False,
 'FaceAdjSwitchInfoText':            'KPS and SCALE ADJUSTMENT:\nThis is an experimental feature to perform direct adjustments to the face landmarks found by the detector. There is also an option to adjust the scale of the swapped face.',
 'FaceAdjSwitchState':               False,
-#
+# Face Landmarks Detection
 'LandmarksDetectionAdjSwitchInfoText': 'KPS ADJUSTMENT:\nThis is an experimental feature to perform direct adjustments to the face landmarks found by the detector. ',
 'LandmarksDetectionAdjSwitchState':    False,
 'LandmarksAlignModeFromPointsSwitchInfoText': 'KPS ADJUSTMENT ALIGN MODE FROM POINTS:\nThis is an experimental feature to perform direct adjustments to the face landmarks found from detector key points.',
 'LandmarksAlignModeFromPointsSwitchState':    False,
 'ShowLandmarksSwitchInfoText':      'Show Landmarks in realtime.',
 'ShowLandmarksSwitchState':         False,
+#
+# Face Landmarks Position
+'LandmarksPositionAdjSwitchInfoText': 'KPS ADJUSTMENT:\nThis is an experimental feature to perform direct adjustments to the position of face landmarks found by the detector. ',
+'LandmarksPositionAdjSwitchState':    False,
+#
+# Face Likeness
+'FaceLikenessSwitchInfoText':       'Face Likeness:\nThis is an experimental feature to perform direct adjustments to likeness of faces.',
+'FaceLikenessSwitchState':           False,
+#
+# Auto Rotation
+'AutoRotationSwitchInfoText':       'Auto Rotation:\nAutomatically Rotate the frames to find the best detection angle',
+'AutoRotationSwitchState':           False,
 #
 'FaceParserSwitchInfoText':         'BACKGROUND MASK:\nAllow the unprocessed background from the orginal image to show in the final swap.',
 'FaceParserSwitchState':            False,
@@ -204,6 +216,9 @@ DEFAULT_DATA = {
 'StrengthSwitchState':              False,
 'CLIPSwitchInfoText':               'TEXT MASKING:\nUse descriptions to identify objects that will be present in the final swapped image.',
 'CLIPSwitchState':                  False,
+
+'VirtualCameraSwitchState':         False,
+'VirtualCameraSwitchInfoText':      'VIRTUAL CAMERA:\nFeed the swapped video output to virtual camera for using in external applications',
 
 # Sliders
 'BlendSliderAmount':                5,
@@ -251,12 +266,76 @@ DEFAULT_DATA = {
 'DetectScoreSliderInfoText':        'DETECTION SCORE LIMIT:\nDetermines the minimum score required for a face to be detected. Higher values require higher quality faces. E.g., if faces are flickering when at extreme angles, raising this will limit swapping attempts.',
 'DetectScoreSliderMax':             100,
 'DetectScoreSliderMin':             1,
-#
+# Face Landmarks Detection
 'LandmarksDetectScoreSliderAmount':  50,
 'LandmarksDetectScoreSliderInc':     1,      
 'LandmarksDetectScoreSliderInfoText':'LANDMARKS DETECTION SCORE LIMIT:\nDetermines the minimum score required for a face to be detected. Higher values require higher quality faces. E.g., if faces are flickering when at extreme angles, raising this will limit swapping attempts.',
 'LandmarksDetectScoreSliderMax':     100,
 'LandmarksDetectScoreSliderMin':     1,
+#
+# Face Likeness
+'FaceLikenessFactorSliderAmount':    0.00,
+'FaceLikenessFactorSliderInc':       0.05,      
+'FaceLikenessFactorSliderInfoText':  'Face Likeness Factor:\nDetermines the factor of likeness between the source and assigned faces.',
+'FaceLikenessFactorSliderMax':       1.00,
+'FaceLikenessFactorSliderMin':       -1.00,
+#
+# Face Landmarks Position
+'FaceIDSliderAmount':               1,
+'FaceIDSliderInc':                  1,      
+'FaceIDSliderInfoText':             'LANDMARKS POSITION FACE ID:\nDetermines the target face for which the positions of the facial points can be modified.',
+'FaceIDSliderMax':                  20,
+'FaceIDSliderMin':                  1,
+'EyeLeftXSliderAmount':             0, 
+'EyeLeftXSliderInc':                1,      
+'EyeLeftXSliderInfoText':           'Eye Left X-DIRECTION AMOUNT:\nShifts the eye left detection point left and right',
+'EyeLeftXSliderMax':                100,
+'EyeLeftXSliderMin':                -100,
+'EyeLeftYSliderAmount':             0, 
+'EyeLeftYSliderInc':                1,      
+'EyeLeftYSliderInfoText':           'Eye Left Y-DIRECTION AMOUNT:\nShifts the eye left detection point up and down',
+'EyeLeftYSliderMax':                100,
+'EyeLeftYSliderMin':                -100,
+'EyeRightXSliderAmount':             0, 
+'EyeRightXSliderInc':                1,      
+'EyeRightXSliderInfoText':           'Eye Left X-DIRECTION AMOUNT:\nShifts the eye right detection point left and right',
+'EyeRightXSliderMax':                100,
+'EyeRightXSliderMin':                -100,
+'EyeRightYSliderAmount':             0, 
+'EyeRightYSliderInc':                1,      
+'EyeRightYSliderInfoText':           'Eye Left Y-DIRECTION AMOUNT:\nShifts the eye right detection point up and down',
+'EyeRightYSliderMax':                100,
+'EyeRightYSliderMin':                -100,
+'NoseXSliderAmount':                 0, 
+'NoseXSliderInc':                    1,      
+'NoseXSliderInfoText':               'Nose X-DIRECTION AMOUNT:\nShifts the nose detection point left and right',
+'NoseXSliderMax':                    100,
+'NoseXSliderMin':                    -100,
+'NoseYSliderAmount':                 0, 
+'NoseYSliderInc':                    1,      
+'NoseYSliderInfoText':               'Nose Y-DIRECTION AMOUNT:\nShifts the nose detection point up and down',
+'NoseYSliderMax':                    100,
+'NoseYSliderMin':                    -100,
+'MouthLeftXSliderAmount':            0, 
+'MouthLeftXSliderInc':               1,      
+'MouthLeftXSliderInfoText':          'Mouth Left X-DIRECTION AMOUNT:\nShifts the mouth left detection point left and right',
+'MouthLeftXSliderMax':               100,
+'MouthLeftXSliderMin':               -100,
+'MouthLeftYSliderAmount':            0, 
+'MouthLeftYSliderInc':               1,      
+'MouthLeftYSliderInfoText':          'Mouth Left Y-DIRECTION AMOUNT:\nShifts the mouth left detection point up and down',
+'MouthLeftYSliderMax':               100,
+'MouthLeftYSliderMin':               -100,
+'MouthRightXSliderAmount':           0, 
+'MouthRightXSliderInc':              1,      
+'MouthRightXSliderInfoText':         'Mouth Right X-DIRECTION AMOUNT:\nShifts the mouth Right detection point left and right',
+'MouthRightXSliderMax':              100,
+'MouthRightXSliderMin':              -100,
+'MouthRightYSliderAmount':           0, 
+'MouthRightYSliderInc':              1,      
+'MouthRightYSliderInfoText':         'Mouth Right Y-DIRECTION AMOUNT:\nShifts the mouth Right detection point up and down',
+'MouthRightYSliderMax':              100,
+'MouthRightYSliderMin':              -100,
 #
 'DiffSliderAmount':                 4,   
 'DiffSliderInc':                    1,
@@ -290,9 +369,58 @@ DEFAULT_DATA = {
 'KPSYSliderMin':                    -100,
 'MouthParserSliderAmount':          0, 
 'MouthParserSliderInc':             1,      
-'MouthParserSliderInfoText':        'MOUTH MASK AMOUNT:\nAdjust the size of the mask. Negative values only mask the inside of the mouth, including the tongue. Positive values also include lips',
-'MouthParserSliderMax':             50,
-'MouthParserSliderMin':             -50,
+'MouthParserSliderInfoText':        'MOUTH MASK AMOUNT:\nAdjust the size of the mask. Mask the inside of the mouth, including the tongue',
+'MouthParserSliderMax':             30,
+'MouthParserSliderMin':             0,
+
+'NeckParserSliderAmount':          0, 
+'NeckParserSliderInc':             1,      
+'NeckParserSliderInfoText':        'NECK MASK AMOUNT:\nAdjust the size of the mask.',
+'NeckParserSliderMax':             30,
+'NeckParserSliderMin':             0,
+
+'LeftEyeBrowParserSliderAmount':          0, 
+'LeftEyeBrowParserSliderInc':             1,      
+'LeftEyeBrowParserSliderInfoText':        'LEFT EYEBROW MASK AMOUNT:\nAdjust the size of the mask.',
+'LeftEyeBrowParserSliderMax':             30,
+'LeftEyeBrowParserSliderMin':             0,
+
+'RightEyeBrowParserSliderAmount':          0, 
+'RightEyeBrowParserSliderInc':             1,      
+'RightEyeBrowParserSliderInfoText':        'RIGHT EYEBROW MASK AMOUNT:\nAdjust the size of the mask.',
+'RightEyeBrowParserSliderMax':             30,
+'RightEyeBrowParserSliderMin':             0,
+
+'LeftEyeParserSliderAmount':          0, 
+'LeftEyeParserSliderInc':             1,      
+'LeftEyeParserSliderInfoText':        'LEFT EYE MASK AMOUNT:\nAdjust the size of the mask.',
+'LeftEyeParserSliderMax':             30,
+'LeftEyeParserSliderMin':             0,
+
+'RightEyeParserSliderAmount':          0, 
+'RightEyeParserSliderInc':             1,      
+'RightEyeParserSliderInfoText':        'RIGHT EYE MASK AMOUNT:\nAdjust the size of the mask.',
+'RightEyeParserSliderMax':             30,
+'RightEyeParserSliderMin':             0,
+
+'NoseParserSliderAmount':          0, 
+'NoseParserSliderInc':             1,      
+'NoseParserSliderInfoText':        'NOSE MASK AMOUNT:\nAdjust the size of the mask.',
+'NoseParserSliderMax':             30,
+'NoseParserSliderMin':             0,
+
+'UpperLipParserSliderAmount':          0, 
+'UpperLipParserSliderInc':             1,      
+'UpperLipParserSliderInfoText':        'UPPER LIP MASK AMOUNT:\nAdjust the size of the mask.',
+'UpperLipParserSliderMax':             30,
+'UpperLipParserSliderMin':             0,
+
+'LowerLipParserSliderAmount':          0, 
+'LowerLipParserSliderInc':             1,      
+'LowerLipParserSliderInfoText':        'LOWER LIP MASK AMOUNT:\nAdjust the size of the mask.',
+'LowerLipParserSliderMax':             30,
+'LowerLipParserSliderMin':             0,
+
 'OccluderSliderAmount':             0,
 'OccluderSliderInc':                1,
 'OccluderSliderInfoText':           'OCCLUDER AMOUNT:\nGrows or shrinks the occluded region',
@@ -316,7 +444,7 @@ DEFAULT_DATA = {
 'ThreadsSliderAmount':              5,
 'ThreadsSliderInc':                 1,    
 'ThreadsSliderInfoText':            'EXECUTION THREADS:\nSet number of execution threads while playing and recording. Depends strongly on GPU VRAM. 5 threads for 24GB.',
-'ThreadsSliderMax':                 20,
+'ThreadsSliderMax':                 50,
 'ThreadsSliderMin':                 1,
 'ThresholdSliderAmount':            55,
 'ThresholdSliderInc':               1,
@@ -341,15 +469,29 @@ DEFAULT_DATA = {
 'ColorGammaSliderMax':                    2,
 'ColorGammaSliderMin':                    0,
 
-
 # Text Selection
 'DetectTypeTextSelInfoText':        'FACE DETECTION MODEL:\nSelect the face detection model. Mostly only subtle differences, but can significant differences when the face is at extreme angles or covered.',
 'DetectTypeTextSelMode':            'Retinaface',
 'DetectTypeTextSelModes':           ['Retinaface', 'Yolov8', 'SCRDF', 'Yunet'],
-#
+# Face Landmarks Detection
 'LandmarksDetectTypeTextSelInfoText': 'LANDMARKS FACE DETECTION MODEL:\nSelect the landmarks face detection model. Mostly only subtle differences, but can significant differences when the face is at extreme angles or covered.',
 'LandmarksDetectTypeTextSelMode':     '98',
 'LandmarksDetectTypeTextSelModes':    ['5', '68', '3d68', '98', '106', '478'],
+#
+# Similarity Type
+'SimilarityTypeTextSelInfoText':    'Similarity version:\nSelect the similarity to be used with arc face recognizer model.',
+'SimilarityTypeTextSelMode':        'Opal',
+'SimilarityTypeTextSelModes':       ['Opal', 'Pearl', 'Optimal'],
+#
+# ProvidersPriority
+'ProvidersPriorityTextSelInfoText':    'Providers Priority:\nSelect the providers priority to be used with the system.',
+'ProvidersPriorityTextSelMode':        'CUDA',
+'ProvidersPriorityTextSelModes':       ['CUDA', 'TensorRT', 'CPU'],
+#
+# Face Swapper Model
+'FaceSwapperModelTextSelInfoText':  'Face Swapper Model:\nSelect the Face Swapper model.',
+'FaceSwapperModelTextSelMode':      'Inswapper128',
+'FaceSwapperModelTextSelModes':     ['Inswapper128', 'SimSwap512', 'GF1', 'GF2', 'GF3'],
 #
 'PreviewModeTextSelInfoText':       '',
 'PreviewModeTextSelMode':           'Video',
@@ -360,9 +502,9 @@ DEFAULT_DATA = {
 'RestorerDetTypeTextSelInfoText':   'ALIGNMENT:\nSelect how the face is aligned for the Restorer. Original preserves facial features and expressions, but can show some artifacts. Reference softens features. Blend is closer to Reference but is much faster.',
 'RestorerDetTypeTextSelMode':       'Blend',
 'RestorerDetTypeTextSelModes':      ['Original', 'Blend', 'Reference'],  
-'RestorerTypeTextSelInfoText':      'RESTORER TYPE:\nSelect the Restorer type.\nSpeed: GPEN256>GFPGAN>CF>GPEN512',
+'RestorerTypeTextSelInfoText':      'RESTORER TYPE:\nSelect the Restorer type.\nSpeed: GPEN256>GFPGAN>CF>GPEN512>GPEN1024>GPEN2028',
 'RestorerTypeTextSelMode':          'GFPGAN',
-'RestorerTypeTextSelModes':         ['GFPGAN', 'CF', 'GPEN256', 'GPEN512', 'GPEN1024'],
+'RestorerTypeTextSelModes':         ['GFPGAN', 'CF', 'GP256', 'GP512', 'GP1024', 'GP2048'],
 'MergeTextSelInfoText':      'INPUT FACES MERGE MATH:\nWhen shift-clicking face for merging, determines how the embedding vectors are combined.',
 'MergeTextSelMode':          'Mean',
 'MergeTextSelModes':         ['Mean', 'Median'],

@@ -18,15 +18,20 @@ torchvision.disable_beta_transforms_warning()
 from torchvision.transforms import v2
 torch.set_grad_enabled(False)
 onnxruntime.set_default_logger_severity(4)
+import rope.FaceUtil as faceutil
 
 import inspect #print(inspect.currentframe().f_back.f_code.co_name, 'resize_image')
-
+import pyvirtualcam
 device = 'cuda'
+
+# cap = cv2.VideoCapture(0)
+# cap_virt = pyvirtualcam.Camera(width=1920, height=1080, fps=1)
 
 lock=threading.Lock()
 
 class VideoManager():  
     def __init__(self, models ):
+        self.virtcam = False
         self.models = models
         # Model related
         self.swapper_model = []             # insightface swapper model
@@ -122,28 +127,67 @@ class VideoManager():
                             }   
         self.rec_qs = []
 
+        # Face Landmarks
+        self.face_landmarks = []
+        #
+        
     def assign_found_faces(self, found_faces):
         self.found_faces = found_faces
 
+    def enable_virtualcam(self):
+        #Check if capture contains any cv2 stream or is it an empty list
+        if not isinstance(self.capture, (list)):
+            vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)) 
+            print(vid_height, vid_width)
+            self.disable_virtualcam()
+            self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
+    def disable_virtualcam(self):
+        if self.virtcam:
+            self.virtcam.close()
+        self.virtcam = False
+        # print("Disable hello")
+    def webcam_selected(self, file):
+        if ('Webcam' in file) and len(file)==8:
+            return True
+        return False
 
     def load_target_video( self, file ):
         # If we already have a video loaded, release it
         if self.capture:
             self.capture.release()
+        
+        if self.control['VirtualCameraSwitch']:
+            self.add_action("set_virtual_cam_toggle_disable",None)
+            self.disable_virtualcam()
+
             
         # Open file   
         self.video_file = file
-        self.capture = cv2.VideoCapture(file)
-        self.fps = self.capture.get(cv2.CAP_PROP_FPS)
+        if self.webcam_selected(file):
+            webcam_index = int(file[-1])
+            self.capture = cv2.VideoCapture(webcam_index, cv2.CAP_DSHOW)
+            self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            self.fps = 30
+
+        else:
+            self.capture = cv2.VideoCapture(file)
+            self.fps = self.capture.get(cv2.CAP_PROP_FPS)
+
         
         if not self.capture.isOpened():
-            print("Cannot open file: ", file)
+            if self.webcam_selected(file):
+                print("Cannot open file: ", file)
             
         else:
             self.target_video = file
             self.is_video_loaded = True
             self.is_image_loaded = False
-            self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            if not self.webcam_selected(file):
+                self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            else:
+                self.video_frame_total = 99999999
             self.play = False 
             self.current_frame = 0
             self.frame_timer = time.time()
@@ -160,6 +204,12 @@ class VideoManager():
             temp = [crop, False]
             self.r_frame_q.append(temp)
             self.capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
+
+            # Face Landmarks
+            if self.face_landmarks:
+                self.face_landmarks.remove_all_data()
+                self.face_landmarks.apply_landmarks_to_widget_and_parameters(self.current_frame, 1)
+            #
     
     def load_target_image(self, file):
         if self.capture:
@@ -173,6 +223,12 @@ class VideoManager():
         self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB) # RGB
         temp = [self.image, False]
         self.frame_q.append(temp)
+
+        # Face Landmarks
+        if self.face_landmarks:
+            self.face_landmarks.remove_all_data()
+            self.face_landmarks.apply_landmarks_to_widget_and_parameters(self.current_frame, 1)
+        #
 
         self.is_image_loaded = True
 
@@ -216,21 +272,28 @@ class VideoManager():
             if self.play == True:            
                 self.play_video("stop")
                 self.process_qs = []
-                
+
+            # Face Landmarks
+            apply_landmarks = (self.current_frame != int(frame))
+            #
             self.current_frame = int(frame)
 
             self.capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
             success, target_image = self.capture.read() #BGR
 
             if success:
+                # Face Landmarks
+                if apply_landmarks and self.face_landmarks:
+                    self.face_landmarks.apply_landmarks_to_widget_and_parameters(self.current_frame, 1)
+                #
+                
                 target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2RGB) #RGB 
                 if not self.control['SwapFacesButton']:   
                     temp = [target_image, self.current_frame] #temp = RGB
                 else:
                     temp = [self.swap_video(target_image, self.current_frame, marker), self.current_frame] # temp = RGB
 
-                self.r_frame_q.append(temp)  
-        
+                self.r_frame_q.append(temp)
         elif self.is_image_loaded:
             if not self.control['SwapFacesButton']:
                 temp = [self.image, self.current_frame] # image = RGB
@@ -238,8 +301,7 @@ class VideoManager():
             else:  
                 temp = [self.swap_video(self.image, self.current_frame, False), self.current_frame] # image = RGB
             
-            self.r_frame_q.append(temp)  
-
+            self.r_frame_q.append(temp)
 
     def find_lowest_frame(self, queues):
         min_frame=999999999
@@ -402,10 +464,24 @@ class VideoManager():
             if index != -1:
                 if self.process_qs[index]['Status'] == 'finished':
                     temp = [self.process_qs[index]['ProcessedFrame'], self.process_qs[index]['FrameNumber']]
+
                     self.frame_q.append(temp)
 
                     # Report fps, other data
                     self.fps_average.append(1.0/time_diff)
+                    avg_fps = self.fps / self.fps_average[-1] if self.fps_average else 10
+
+                    # self.send_to_virtual_camera(temp[0], 15)
+                    if self.control['VirtualCameraSwitch'] and self.virtcam:
+                        # print("virtcam",self.virtcam)
+                        try:
+                            # self.virtcam.send(cv2.resize(temp[0], (640,480), interpolation=cv2.INTER_CUBIC) )
+                            # self.virtcam.send(cv2.flip(temp[0],1),)
+                            self.virtcam.send(temp[0])
+
+                            self.virtcam.sleep_until_next_frame()
+                        except Exception as e:
+                            print(e)
                     if len(self.fps_average) >= floor(self.fps):
                         fps = round(np.average(self.fps_average), 2)
                         msg = "%s fps, %s process time" % (fps, round(self.process_qs[index]['ThreadTime'], 4))
@@ -419,68 +495,75 @@ class VideoManager():
                     self.process_qs[index]['FrameNumber'] = []
                     self.process_qs[index]['ThreadTime'] = []
                     self.frame_timer += 1.0/self.fps
-                    
-        elif self.record:
-           
-            index, min_frame = self.find_lowest_frame(self.process_qs)           
+
+        if not self.webcam_selected(self.video_file):           
+            if self.record:
             
-            if index != -1:
+                index, min_frame = self.find_lowest_frame(self.process_qs)           
+                
+                if index != -1:
+
+
 
                 # If the swapper thread has finished generating a frame
-                if self.process_qs[index]['Status'] == 'finished':
-                    image = self.process_qs[index]['ProcessedFrame']  
-                    
-                    if self.parameters['RecordTypeTextSel']=='FFMPEG':
-                        pil_image = Image.fromarray(image)
-                        pil_image.save(self.sp.stdin, 'BMP')   
-                    
-                    elif self.parameters['RecordTypeTextSel']=='OPENCV':
-                        self.sp.write(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-
-                    temp = [image, self.process_qs[index]['FrameNumber']]
-                    self.frame_q.append(temp)
-
-                    # Close video and process
-                    if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:
-                        self.play_video("stop")
-                        stop_time = float(self.capture.get(cv2.CAP_PROP_POS_FRAMES) / float(self.fps))
-                        if stop_time == 0:
-                            stop_time = float(self.video_frame_total) / float(self.fps)
+                    if self.process_qs[index]['Status'] == 'finished':
+                        image = self.process_qs[index]['ProcessedFrame']  
                         
                         if self.parameters['RecordTypeTextSel']=='FFMPEG':
-                            self.sp.stdin.close()
-                            self.sp.wait()
-                        elif self.parameters['RecordTypeTextSel']=='OPENCV':    
-                            self.sp.release()
 
-                        orig_file = self.target_video
-                        final_file = self.output+self.file_name[1]
-                        print("adding audio...")    
-                        args = ["ffmpeg",
-                                '-hide_banner',
-                                '-loglevel',    'error',
-                                "-i", self.temp_file,
-                                "-ss", str(self.start_time), "-to", str(stop_time), "-i",  orig_file,
-                                "-c",  "copy", # may be c:v
-                                "-map", "0:v:0", "-map", "1:a:0?",
-                                "-shortest",
-                                final_file]
+                            pil_image = Image.fromarray(image)
+                            pil_image.save(self.sp.stdin, 'BMP')   
                         
-                        four = subprocess.run(args)
-                        os.remove(self.temp_file)
+                        elif self.parameters['RecordTypeTextSel']=='OPENCV':
+                            self.sp.write(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
-                        timef= time.time() - self.timer 
-                        self.record = False
-                        print('Video saved as:', final_file)
-                        msg = "Total time: %s s." % (round(timef,1))
-                        print(msg)
+                        temp = [image, self.process_qs[index]['FrameNumber']]
+                        self.frame_q.append(temp)
 
-                        
-                    self.total_thread_time = []
-                    self.process_qs[index]['Status'] = 'clear'
-                    self.process_qs[index]['FrameNumber'] = []
-                    self.process_qs[index]['Thread'] = []
-                    self.frame_timer = time.time()
+                        # Close video and process
+                        if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:
+                            self.play_video("stop")
+                            stop_time = float(self.capture.get(cv2.CAP_PROP_POS_FRAMES) / float(self.fps))
+                            if stop_time == 0:
+                                stop_time = float(self.video_frame_total) / float(self.fps)
+                            
+                            if self.parameters['RecordTypeTextSel']=='FFMPEG':
+                                self.sp.stdin.close()
+                                self.sp.wait()
+                            elif self.parameters['RecordTypeTextSel']=='OPENCV':    
+                                self.sp.release()
+
+                            orig_file = self.target_video
+                            final_file = self.output+self.file_name[1]
+                            print("adding audio...")    
+                            args = ["ffmpeg",
+                                    '-hide_banner',
+                                    '-loglevel',    'error',
+                                    "-i", self.temp_file,
+                                    "-ss", str(self.start_time), "-to", str(stop_time), "-i",  orig_file,
+                                    "-c",  "copy", # may be c:v
+                                    "-map", "0:v:0", "-map", "1:a:0?",
+                                    "-shortest",
+                                    final_file]
+                            
+                            four = subprocess.run(args)
+                            os.remove(self.temp_file)
+
+                            timef= time.time() - self.timer 
+                            self.record = False
+                            print('Video saved as:', final_file)
+                            msg = "Total time: %s s." % (round(timef,1))
+                            print(msg)
+
+                            
+                        self.total_thread_time = []
+                        self.process_qs[index]['Status'] = 'clear'
+                        self.process_qs[index]['FrameNumber'] = []
+                        self.process_qs[index]['Thread'] = []
+                        self.frame_timer = time.time()
+        else:
+            self.record=False  
+            self.add_action('disable_record_button', False)      
     # @profile
     def thread_video_read(self, frame_number):  
         with lock:
@@ -502,10 +585,10 @@ class VideoManager():
                     break
 
 
-
-
     # @profile
     def swap_video(self, target_image, frame_number, use_markers):
+        # success, target_image = self.webcam.read()
+        # self.capture_frame()
         # Grab a local copy of the parameters to prevent threading issues
         parameters = self.parameters.copy()
         control = self.control.copy()
@@ -516,8 +599,10 @@ class VideoManager():
             for i in range(len(self.markers)):
                 temp.append(self.markers[i]['frame'])
             idx = bisect.bisect(temp, frame_number)
-            
-            parameters = self.markers[idx-1]['parameters'].copy()
+
+            # We copy marker parameters only if condition matches.
+            if idx > 0:
+                parameters = self.markers[idx-1]['parameters'].copy()
         
         # Load frame into VRAM
         img = torch.from_numpy(target_image.astype('uint8')).to('cuda') #HxWxc
@@ -526,35 +611,70 @@ class VideoManager():
         #Scale up frame if it is smaller than 512
         img_x = img.size()[2]
         img_y = img.size()[1]
-        
+
+        det_scale = 1.0
         if img_x<512 and img_y<512:
             # if x is smaller, set x to 512
             if img_x <= img_y:
-                tscale = v2.Resize((int(512*img_y/img_x), 512), antialias=True)
+                new_height = int(512*img_y/img_x)
+                tscale = v2.Resize((new_height, 512), antialias=True)
             else:
-                tscale = v2.Resize((512, int(512*img_x/img_y)), antialias=True)
+                new_height = 512
+                tscale = v2.Resize((new_height, int(512*img_x/img_y)), antialias=True)
 
             img = tscale(img)
+
+            det_scale = torch.div(new_height, img_y)
             
         elif img_x<512:
-            tscale = v2.Resize((int(512*img_y/img_x), 512), antialias=True)
+            new_height = int(512*img_y/img_x)
+            tscale = v2.Resize((new_height, 512), antialias=True)
             img = tscale(img)
+
+            det_scale = torch.div(new_height, img_y)
         
         elif img_y<512:
-            tscale = v2.Resize((512, int(512*img_x/img_y)), antialias=True)
-            img = tscale(img)    
+            new_height = 512
+            tscale = v2.Resize((new_height, int(512*img_x/img_y)), antialias=True)
+            img = tscale(img)
+
+            det_scale = torch.div(new_height, img_y)
 
         # Rotate the frame
         if parameters['OrientSwitch']:
             img = v2.functional.rotate(img, angle=parameters['OrientSlider'], interpolation=v2.InterpolationMode.BILINEAR, expand=True)
 
         # Find all faces in frame and return a list of 5-pt kpss
-        bboxes, kpss = self.func_w_test("detect", self.models.run_detect, img, parameters['DetectTypeTextSel'], max_num=20, score=parameters['DetectScoreSlider']/100.0, use_landmark_detection=parameters['LandmarksDetectionAdjSwitch'], landmark_detect_mode=parameters["LandmarksDetectTypeTextSel"], landmark_score=parameters["LandmarksDetectScoreSlider"]/100.0, from_points=parameters["LandmarksAlignModeFromPointsSwitch"])
+        if parameters["AutoRotationSwitch"]:
+            rotation_angles = [0, 90, 180, 270]
+        else:
+            rotation_angles = [0]
+        bboxes, kpss = self.func_w_test("detect", self.models.run_detect, img, parameters['DetectTypeTextSel'], max_num=20, score=parameters['DetectScoreSlider']/100.0, use_landmark_detection=parameters['LandmarksDetectionAdjSwitch'], landmark_detect_mode=parameters["LandmarksDetectTypeTextSel"], landmark_score=parameters["LandmarksDetectScoreSlider"]/100.0, from_points=parameters["LandmarksAlignModeFromPointsSwitch"], rotation_angles=rotation_angles)
 
         # Get embeddings for all faces found in the frame
         ret = []
+        # Face Landmarks
+        face_id = 0
+        #
         for face_kps in kpss:
-            face_emb, _ = self.func_w_test('recognize',  self.models.run_recognize, img, face_kps)
+            # Face Landmarks
+            face_id+=1
+            if self.face_landmarks and parameters['LandmarksPositionAdjSwitch']:
+                landmarks = self.face_landmarks.get_landmarks(frame_number, face_id)
+                if landmarks is not None:                    
+                    face_kps[0][0] += landmarks[0][0]
+                    face_kps[0][1] += landmarks[0][1]
+                    face_kps[1][0] += landmarks[1][0]
+                    face_kps[1][1] += landmarks[1][1]
+                    face_kps[2][0] += landmarks[2][0]
+                    face_kps[2][1] += landmarks[2][1]
+                    face_kps[3][0] += landmarks[3][0]
+                    face_kps[3][1] += landmarks[3][1]
+                    face_kps[4][0] += landmarks[4][0]
+                    face_kps[4][1] += landmarks[4][1]
+            #
+
+            face_emb, _ = self.func_w_test('recognize',  self.models.run_recognize, img, face_kps, self.parameters["SimilarityTypeTextSel"], self.parameters['FaceSwapperModelTextSel'])
             ret.append([face_kps, face_emb])
         
         if ret:
@@ -567,9 +687,10 @@ class VideoManager():
                     if sim>=float(parameters["ThresholdSlider"]) and found_face["SourceFaceAssignments"]:
                         s_e = found_face["AssignedEmbedding"]
                         # s_e = found_face['ptrdata']
-                        img = self.func_w_test("swap_video", self.swap_core, img, fface[0], s_e, parameters, control)
+                        img = self.func_w_test("swap_video", self.swap_core, img, fface[0], s_e, fface[1], parameters, control)
                         # img = img.permute(2,0,1)
-                    
+
+                            
             img = img.permute(1,2,0)
             if not control['MaskViewButton'] and parameters['OrientSwitch']:
                 img = img.permute(2,0,1)
@@ -603,18 +724,24 @@ class VideoManager():
                 else:
                     p = 2
 
+                face_id = 0
                 for face in ret:
+                    face_id += 1
+                    if parameters['LandmarksPositionAdjSwitch'] and parameters['FaceIDSlider'] == face_id:
+                        kcolor = tuple((255, 0, 0))
+                    else:
+                        kcolor = tuple((0, 255, 255))
                     for kpoint in face[0]:
+                        kpoint = kpoint / det_scale
                         for i in range(-1, p):
                             for j in range(-1, p):
                                 try:
-                                    img[int(kpoint[1])+i][int(kpoint[0])+j][0] = 0
-                                    img[int(kpoint[1])+i][int(kpoint[0])+j][1] = 255
-                                    img[int(kpoint[1])+i][int(kpoint[0])+j][2] = 255
+                                    img[int(kpoint[1])+i][int(kpoint[0])+j][0] = kcolor[0]
+                                    img[int(kpoint[1])+i][int(kpoint[0])+j][1] = kcolor[1]
+                                    img[int(kpoint[1])+i][int(kpoint[0])+j][2] = kcolor[2]
                                 except:
                                     print("Key-points value {} exceed the image size {}.".format(kpoint, (img_x, img_y)))
                                     continue
-
         return img.astype(np.uint8)
 
     def findCosineDistance(self, vector1, vector2):
@@ -638,24 +765,45 @@ class VideoManager():
         return result
 
     # @profile    
-    def swap_core(self, img, kps, s_e, parameters, control): # img = RGB
-        # 512 transforms
-        dst = self.arcface_dst * 4.0
-        dst[:,0] += 32.0
-        
-        # Change the ref points
-        if parameters['FaceAdjSwitch']:
-            dst[:,0] += parameters['KPSXSlider']
-            dst[:,1] += parameters['KPSYSlider']
-            dst[:,0] -= 255
-            dst[:,0] *= (1+parameters['KPSScaleSlider']/100)
-            dst[:,0] += 255
-            dst[:,1] -= 255
-            dst[:,1] *= (1+parameters['KPSScaleSlider']/100)
-            dst[:,1] += 255
+    def swap_core(self, img, kps, s_e, t_e, parameters, control): # img = RGB
+        swapper_model = parameters['FaceSwapperModelTextSel']
 
-        tform = trans.SimilarityTransform()
-        tform.estimate(kps, dst) 
+        if swapper_model != 'GF1' and swapper_model != 'GF2' and swapper_model != 'GF3':
+            # 512 transforms
+            dst = self.arcface_dst * 4.0
+            dst[:,0] += 32.0
+            
+            # Change the ref points
+            if parameters['FaceAdjSwitch']:
+                dst[:,0] += parameters['KPSXSlider']
+                dst[:,1] += parameters['KPSYSlider']
+                dst[:,0] -= 255
+                dst[:,0] *= (1+parameters['KPSScaleSlider']/100)
+                dst[:,0] += 255
+                dst[:,1] -= 255
+                dst[:,1] *= (1+parameters['KPSScaleSlider']/100)
+                dst[:,1] += 255
+
+            tform = trans.SimilarityTransform()
+            tform.estimate(kps, dst)
+        else:
+            dst = faceutil.get_arcface_template(image_size=512, mode='arcfacemap')
+
+            # Change the ref points
+            if parameters['FaceAdjSwitch']:
+                for k in dst:
+                    k[:,0] += parameters['KPSXSlider']
+                    k[:,1] += parameters['KPSYSlider']
+                    k[:,0] -= 255
+                    k[:,0] *= (1+parameters['KPSScaleSlider']/100)
+                    k[:,0] += 255
+                    k[:,1] -= 255
+                    k[:,1] *= (1+parameters['KPSScaleSlider']/100)
+                    k[:,1] += 255
+
+            M, _ = faceutil.estimate_norm_arcface_template(kps, src=dst)
+            tform = trans.SimilarityTransform()
+            tform.params[0:2] = M
 
         # Scaling Transforms
         t512 = v2.Resize((512, 512), interpolation=v2.InterpolationMode.BILINEAR, antialias=False)
@@ -667,23 +815,48 @@ class VideoManager():
         original_face_512 = v2.functional.crop(original_face_512, 0,0, 512, 512)# 3, 512, 512
         original_face_256 = t256(original_face_512)
         original_face_128 = t128(original_face_256)
+        #cv2.imwrite('test.png', cv2.cvtColor(original_face_512.permute(1,2,0).cpu().numpy(), cv2.COLOR_RGB2BGR))
 
-        latent = torch.from_numpy(self.models.calc_swapper_latent(s_e)).float().to('cuda')
-
-        dim = 1
-        if parameters['SwapperTypeTextSel'] == '128':
+        if swapper_model == 'Inswapper128':
+            latent = torch.from_numpy(self.models.calc_swapper_latent(s_e)).float().to('cuda')
+            if parameters['FaceLikenessSwitch']:
+                factor = parameters['FaceLikenessFactorSlider']
+                dst_latent = torch.from_numpy(self.models.calc_swapper_latent(t_e)).float().to('cuda')            
+                latent = latent - (factor * dst_latent)
+            
             dim = 1
-            input_face_affined = original_face_128
-        elif parameters['SwapperTypeTextSel'] == '256':
-            dim = 2
-            input_face_affined = original_face_256
-        elif parameters['SwapperTypeTextSel'] == '512':
+            if parameters['SwapperTypeTextSel'] == '128':
+                dim = 1
+                input_face_affined = original_face_128
+            elif parameters['SwapperTypeTextSel'] == '256':
+                dim = 2
+                input_face_affined = original_face_256
+            elif parameters['SwapperTypeTextSel'] == '512':
+                dim = 4
+                input_face_affined = original_face_512
+        elif swapper_model == 'SimSwap512':
+            latent = torch.from_numpy(self.models.calc_swapper_latent_simswap512(s_e)).float().to('cuda')
+            if parameters['FaceLikenessSwitch']:
+                factor = parameters['FaceLikenessFactorSlider']
+                dst_latent = torch.from_numpy(self.models.calc_swapper_latent_simswap512(t_e)).float().to('cuda')
+                latent = latent - (factor * dst_latent)
+
             dim = 4
             input_face_affined = original_face_512
+        elif swapper_model == 'GF1' or swapper_model == 'GF2' or swapper_model == 'GF3':
+            latent = torch.from_numpy(self.models.calc_swapper_latent_ghost(s_e)).float().to('cuda')
+            if parameters['FaceLikenessSwitch']:
+                factor = parameters['FaceLikenessFactorSlider']
+                dst_latent = torch.from_numpy(self.models.calc_swapper_latent_ghost(t_e)).float().to('cuda')
+                latent = latent - (factor * dst_latent)
+
+            dim = 2
+            input_face_affined = original_face_256
 
         # Optional Scaling # change the thransform matrix
         if parameters['FaceAdjSwitch']:
-            input_face_affined = v2.functional.affine(input_face_affined, 0, (0, 0), 1 + parameters['FaceScaleSlider'] / 100, 0, center=(dim*128-1, dim*128-1), interpolation=v2.InterpolationMode.BILINEAR)
+            #input_face_affined = v2.functional.affine(input_face_affined, 0, (0, 0), 1 + parameters['FaceScaleSlider'] / 100, 0, center=(dim*128-1, dim*128-1), interpolation=v2.InterpolationMode.BILINEAR)
+            input_face_affined = v2.functional.affine(input_face_affined, 0, (0, 0), 1 + parameters['FaceScaleSlider'] / 100, 0, center=(dim*128/2, dim*128/2), interpolation=v2.InterpolationMode.BILINEAR)
 
         itex = 1
         if parameters['StrengthSwitch']:
@@ -694,31 +867,68 @@ class VideoManager():
         input_face_affined = input_face_affined.permute(1, 2, 0)
         input_face_affined = torch.div(input_face_affined, 255.0)
 
-        for k in range(itex):
-            for j in range(dim):
-                for i in range(dim):
-                    input_face_disc = input_face_affined[j::dim,i::dim]
-                    input_face_disc = input_face_disc.permute(2, 0, 1)
-                    input_face_disc = torch.unsqueeze(input_face_disc, 0).contiguous()
+        if swapper_model == 'Inswapper128':
+            for k in range(itex):
+                for j in range(dim):
+                    for i in range(dim):
+                        input_face_disc = input_face_affined[j::dim,i::dim]
+                        input_face_disc = input_face_disc.permute(2, 0, 1)
+                        input_face_disc = torch.unsqueeze(input_face_disc, 0).contiguous()
 
-                    swapper_output = torch.empty((1,3,128,128), dtype=torch.float32, device='cuda').contiguous()
-                    self.models.run_swapper(input_face_disc, latent, swapper_output)
+                        swapper_output = torch.empty((1,3,128,128), dtype=torch.float32, device='cuda').contiguous()
+                        self.models.run_swapper(input_face_disc, latent, swapper_output)
 
-                    swapper_output = torch.squeeze(swapper_output)
-                    swapper_output = swapper_output.permute(1, 2, 0)
+                        swapper_output = torch.squeeze(swapper_output)
+                        swapper_output = swapper_output.permute(1, 2, 0)
 
 
-                    output[j::dim, i::dim] = swapper_output.clone()
-            prev_face = input_face_affined.clone()
-            input_face_affined = output.clone()
-            output = torch.mul(output, 255)
-            output = torch.clamp(output, 0, 255)
+                        output[j::dim, i::dim] = swapper_output.clone()
+                prev_face = input_face_affined.clone()
+                input_face_affined = output.clone()
+                output = torch.mul(output, 255)
+                output = torch.clamp(output, 0, 255)
 
+        elif swapper_model == 'SimSwap512':
+            for k in range(itex):
+                input_face_disc = input_face_affined.permute(2, 0, 1)
+                input_face_disc = torch.unsqueeze(input_face_disc, 0).contiguous()
+                swapper_output = torch.empty((1,3,512,512), dtype=torch.float32, device='cuda').contiguous()
+                self.models.run_swapper_simswap512(input_face_disc, latent, swapper_output)
+                swapper_output = torch.squeeze(swapper_output)
+                swapper_output = swapper_output.permute(1, 2, 0)
+                prev_face = input_face_affined.clone()
+                input_face_affined = swapper_output.clone()
+
+                output = swapper_output.clone()
+                output = torch.mul(output, 255)
+                output = torch.clamp(output, 0, 255)
+
+        elif swapper_model == 'GF1' or swapper_model == 'GF2' or swapper_model == 'GF3':
+            for k in range(itex):
+                input_face_disc = torch.mul(input_face_affined, 255.0).permute(2, 0, 1)
+                input_face_disc = torch.div(input_face_disc.float(), 127.5)
+                input_face_disc = torch.sub(input_face_disc, 1)
+                #input_face_disc = input_face_disc[[2, 1, 0], :, :] # Inverte i canali da BGR a RGB (assumendo che l'input sia BGR)
+                input_face_disc = torch.unsqueeze(input_face_disc, 0).contiguous()
+                swapper_output = torch.empty((1,3,256,256), dtype=torch.float32, device='cuda').contiguous()
+                self.models.run_swapper_ghostface(input_face_disc, latent, swapper_output, swapper_model)
+                swapper_output = swapper_output[0]
+                swapper_output = swapper_output.permute(1, 2, 0)
+                swapper_output = torch.mul(swapper_output, 127.5)
+                swapper_output = torch.add(swapper_output, 127.5)
+                #swapper_output = swapper_output[:, :, [2, 1, 0]] # Inverte i canali da RGB a BGR (assumendo che l'input sia RGB)
+                prev_face = input_face_affined.clone()
+                input_face_affined = swapper_output.clone()
+                input_face_affined = torch.div(input_face_affined, 255)
+
+                output = swapper_output.clone()
+                output = torch.clamp(output, 0, 255)
+                #cv2.imwrite('test_swap.png', cv2.cvtColor(output.cpu().numpy(), cv2.COLOR_RGB2BGR))
 
         output = output.permute(2, 0, 1)
 
-
         swap = t512(output)
+        #cv2.imwrite('test_swap512.png', cv2.cvtColor(swap.permute(1,2,0).cpu().numpy(), cv2.COLOR_RGB2BGR))
 
         if parameters['StrengthSwitch']:
             if itex == 0:
@@ -804,7 +1014,7 @@ class VideoManager():
 
 
         if parameters["FaceParserSwitch"]:
-            mask = self.apply_face_parser(swap, parameters["FaceParserSlider"], parameters['MouthParserSlider'])
+            mask = self.apply_face_parser(swap, parameters)
             mask = t128(mask)
             swap_mask = torch.mul(swap_mask, mask)            
         
@@ -819,8 +1029,8 @@ class VideoManager():
 
         # Add blur to swap_mask results
         gauss = transforms.GaussianBlur(parameters['BlendSlider']*2+1, (parameters['BlendSlider']+1)*0.2)
-        swap_mask = gauss(swap_mask)  
-        
+        swap_mask = gauss(swap_mask)
+        #cv2.imwrite('test_swap512_2.png', cv2.cvtColor(swap.permute(1,2,0).cpu().numpy(), cv2.COLOR_RGB2BGR))
 
         # Combine border and swap mask, scale, and apply to swap
         swap_mask = torch.mul(swap_mask, border_mask)
@@ -853,7 +1063,8 @@ class VideoManager():
             swap = v2.functional.affine(swap, tform.inverse.rotation*57.2958, (tform.inverse.translation[0], tform.inverse.translation[1]), tform.inverse.scale, 0,interpolation=v2.InterpolationMode.BILINEAR, center = (0,0) )
             swap = swap[0:3, top:bottom, left:right]
             swap = swap.permute(1, 2, 0)
-            
+            #cv2.imwrite('test_swap512_3.png', cv2.cvtColor(swap.cpu().numpy(), cv2.COLOR_RGB2BGR))
+
             # Untransform the swap mask
             swap_mask = v2.functional.pad(swap_mask, (0,0,img.shape[2]-512, img.shape[1]-512))
             swap_mask = v2.functional.affine(swap_mask, tform.inverse.rotation*57.2958, (tform.inverse.translation[0], tform.inverse.translation[1]), tform.inverse.scale, 0, interpolation=v2.InterpolationMode.BILINEAR, center = (0,0) )
@@ -870,7 +1081,8 @@ class VideoManager():
             swap = torch.add(swap, img_crop)
             swap = swap.type(torch.uint8)
             swap = swap.permute(2,0,1)
-            img[0:3, top:bottom, left:right] = swap  
+            img[0:3, top:bottom, left:right] = swap
+            #cv2.imwrite('test_swap512_4.png', cv2.cvtColor(img.permute(1,2,0).cpu().numpy(), cv2.COLOR_RGB2BGR))
 
         else:
             # Invert swap mask
@@ -957,13 +1169,13 @@ class VideoManager():
             thresh = CLIPAmount/100.0
             clip_mask[clip_mask>thresh] = 1.0
             clip_mask[clip_mask<=thresh] = 0.0
-        return clip_mask    
-        
+        return clip_mask   
+     
     # @profile
-    def apply_face_parser(self, img, FaceAmount, MouthAmount):
+    def apply_face_parser(self, img, parameters):
 
         # atts = [1 'skin', 2 'l_brow', 3 'r_brow', 4 'l_eye', 5 'r_eye', 6 'eye_g', 7 'l_ear', 8 'r_ear', 9 'ear_r', 10 'nose', 11 'mouth', 12 'u_lip', 13 'l_lip', 14 'neck', 15 'neck_l', 16 'cloth', 17 'hair', 18 'hat']
-       
+        FaceAmount = parameters["FaceParserSlider"]
         outpred = torch.ones((512,512), dtype=torch.float32, device='cuda').contiguous()
         
 
@@ -977,53 +1189,43 @@ class VideoManager():
         outpred = torch.squeeze(outpred)
         outpred = torch.argmax(outpred, 0)
 
-        # Mouth Parse
-        if MouthAmount <0:
-            mouth_idxs = torch.tensor([11], device='cuda')
-            iters = int(-MouthAmount)
+        face_attributes = {
+            2: parameters['LeftEyeBrowParserSlider'], #Left Eyebrow
+            3: parameters['RightEyeBrowParserSlider'], #Right Eyebrow
+            4: parameters['LeftEyeParserSlider'], #Left Eye
+            5: parameters['RightEyeParserSlider'], #Right Eye
+            10: parameters['NoseParserSlider'], #Nose
+            11: parameters['MouthParserSlider'], #Mouth
+            12: parameters['UpperLipParserSlider'], #Upper Lip
+            13: parameters['LowerLipParserSlider'], #Lower Lip
+            14: parameters['NeckParserSlider'], #Neck
+        }
+        face_parses = []
+        for attribute in face_attributes.keys():
+            if face_attributes[attribute] > 0:
+                attribute_idxs = torch.tensor( [attribute], device='cuda')
+                iters = int(face_attributes[attribute])
 
-            mouth_parse = torch.isin(outpred, mouth_idxs)
-            mouth_parse = torch.clamp(~mouth_parse, 0, 1).type(torch.float32)
-            mouth_parse = torch.reshape(mouth_parse, (1, 1, 512, 512))
-            mouth_parse = torch.neg(mouth_parse)
-            mouth_parse = torch.add(mouth_parse, 1)
+                attribute_parse = torch.isin(outpred, attribute_idxs)
+                attribute_parse = torch.clamp(~attribute_parse, 0, 1).type(torch.float32)
+                attribute_parse = torch.reshape(attribute_parse, (1,1,512,512))
+                attribute_parse = torch.neg(attribute_parse)
+                attribute_parse = torch.add(attribute_parse, 1)
 
-            kernel = torch.ones((1, 1, 3, 3), dtype=torch.float32,
-                                device='cuda')
+                kernel = torch.ones((1,1,3,3), dtype=torch.float32, device='cuda')
 
-            for i in range(iters):
-                mouth_parse = torch.nn.functional.conv2d(mouth_parse, kernel,
-                                                         padding=(1, 1))
-                mouth_parse = torch.clamp(mouth_parse, 0, 1)
+                for i in range(iters):
+                    attribute_parse = torch.nn.functional.conv2d(attribute_parse, kernel, padding=(1, 1))
+                    attribute_parse = torch.clamp(attribute_parse, 0, 1)
 
-            mouth_parse = torch.squeeze(mouth_parse)
-            mouth_parse = torch.neg(mouth_parse)
-            mouth_parse = torch.add(mouth_parse, 1)
-            mouth_parse = torch.reshape(mouth_parse, (1, 512, 512))
+                attribute_parse = torch.squeeze(attribute_parse)
+                attribute_parse = torch.neg(attribute_parse)
+                attribute_parse = torch.add(attribute_parse, 1)
+                attribute_parse = torch.reshape(attribute_parse, (1, 512, 512))
+            else:
+                attribute_parse = torch.ones((1, 512, 512), dtype=torch.float32, device='cuda')
+            face_parses.append(attribute_parse)
 
-        elif MouthAmount >0:
-            mouth_idxs = torch.tensor([11,12,13], device='cuda')
-            iters = int(MouthAmount)
-
-            mouth_parse = torch.isin(outpred, mouth_idxs)
-            mouth_parse = torch.clamp(~mouth_parse, 0, 1).type(torch.float32)
-            mouth_parse = torch.reshape(mouth_parse, (1,1,512,512))
-            mouth_parse = torch.neg(mouth_parse)
-            mouth_parse = torch.add(mouth_parse, 1)
-
-            kernel = torch.ones((1,1,3,3), dtype=torch.float32, device='cuda')
-
-            for i in range(iters):
-                mouth_parse = torch.nn.functional.conv2d(mouth_parse, kernel, padding=(1, 1))
-                mouth_parse = torch.clamp(mouth_parse, 0, 1)
-
-            mouth_parse = torch.squeeze(mouth_parse)
-            mouth_parse = torch.neg(mouth_parse)
-            mouth_parse = torch.add(mouth_parse, 1)
-            mouth_parse = torch.reshape(mouth_parse, (1, 512, 512))
-
-        else:
-            mouth_parse = torch.ones((1, 512, 512), dtype=torch.float32, device='cuda')
 
         # BG Parse
         bg_idxs = torch.tensor([0, 14, 15, 16, 17, 18], device=device)
@@ -1057,8 +1259,10 @@ class VideoManager():
         else:
             bg_parse = torch.ones((1,512,512), dtype=torch.float32, device='cuda')
 
-        out_parse = torch.mul(bg_parse, mouth_parse)
-
+        out_parse = bg_parse
+        for face_parse in face_parses:
+            out_parse = torch.mul(out_parse, face_parse)
+        # out_parse = torch.mul(out_parse, left_eye_parse)
         return out_parse
 
     def apply_bg_face_parser(self, img, FaceParserAmount):
@@ -1119,6 +1323,7 @@ class VideoManager():
         t512 = v2.Resize((512, 512), antialias=False)
         t256 = v2.Resize((256, 256), antialias=False)
         t1024 = v2.Resize((1024, 1024), antialias=False)
+        t2048 = v2.Resize((2048, 2048), antialias=False)
 
         # If using a separate detection mode
         if parameters['RestorerDetTypeTextSel'] == 'Blend' or parameters['RestorerDetTypeTextSel'] == 'Reference':
@@ -1142,7 +1347,7 @@ class VideoManager():
         
         temp = torch.div(temp, 255)
         temp = v2.functional.normalize(temp, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=False)
-        if parameters['RestorerTypeTextSel'] == 'GPEN256':
+        if parameters['RestorerTypeTextSel'] == 'GP256':
             temp = t256(temp)
         temp = torch.unsqueeze(temp, 0).contiguous()
 
@@ -1155,17 +1360,22 @@ class VideoManager():
         elif parameters['RestorerTypeTextSel'] == 'CF':
             self.models.run_codeformer(temp, outpred) 
             
-        elif parameters['RestorerTypeTextSel'] == 'GPEN256':
+        elif parameters['RestorerTypeTextSel'] == 'GP256':
             outpred = torch.empty((1,3,256,256), dtype=torch.float32, device=device).contiguous()
             self.models.run_GPEN_256(temp, outpred) 
             
-        elif parameters['RestorerTypeTextSel'] == 'GPEN512':
+        elif parameters['RestorerTypeTextSel'] == 'GP512':
             self.models.run_GPEN_512(temp, outpred) 
 
-        elif parameters['RestorerTypeTextSel'] == 'GPEN1024':
+        elif parameters['RestorerTypeTextSel'] == 'GP1024':
             temp = t1024(temp)
             outpred = torch.empty((1, 3, 1024, 1024), dtype=torch.float32, device=device).contiguous()
             self.models.run_GPEN_1024(temp, outpred)
+
+        elif parameters['RestorerTypeTextSel'] == 'GP2048':
+            temp = t2048(temp)
+            outpred = torch.empty((1, 3, 2048, 2048), dtype=torch.float32, device=device).contiguous()
+            self.models.run_GPEN_2048(temp, outpred)
 
         # Format back to cxHxW @ 255
         outpred = torch.squeeze(outpred)      
@@ -1173,9 +1383,7 @@ class VideoManager():
         outpred = torch.add(outpred, 1)
         outpred = torch.div(outpred, 2)
         outpred = torch.mul(outpred, 255)
-        if parameters['RestorerTypeTextSel'] == 'GPEN256':
-            outpred = t512(outpred)
-        elif parameters['RestorerTypeTextSel'] == 'GPEN1024':
+        if parameters['RestorerTypeTextSel'] == 'GP256' or parameters['RestorerTypeTextSel'] == 'GP1024' or parameters['RestorerTypeTextSel'] == 'GP2048':
             outpred = t512(outpred)
         # Invert Transform
         if parameters['RestorerDetTypeTextSel'] == 'Blend' or parameters['RestorerDetTypeTextSel'] == 'Reference':
@@ -1210,7 +1418,6 @@ class VideoManager():
 
         return diff    
     
-
     
     def clear_mem(self):
         del self.swapper_model
@@ -1236,7 +1443,7 @@ class VideoManager():
         self.resnet_model = []
         self.detection_model = []
         self.recognition_model = []
-                
+
         # test = swap.permute(1, 2, 0)
         # test = test.cpu().numpy()
         # cv2.imwrite('2.jpg', test) 

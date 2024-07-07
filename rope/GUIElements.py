@@ -704,7 +704,7 @@ class Switch2():
         self.set(self.default_data[self.name+'State'])        
                 
 class Slider2():
-    def __init__(self, parent, name, display_text, style_level, function, argument, width, height, x, y, slider_percent):
+    def __init__(self, parent, name, display_text, style_level, function, argument, width, height, x, y, slider_percent, entry_width=60):
 
         # self.constants = CONSTANTS
         self.default_data = DEFAULT_DATA
@@ -743,6 +743,10 @@ class Slider2():
         self.min_ = self.default_data[name+'Min']
         self.max_ = self.default_data[name+'Max'] 
         self.inc_ = self.default_data[name+'Inc']   
+        self.decimal_places_ = 0
+        if str(self.inc_).find('.') != -1:
+            self.decimal_places_ = len(str(self.inc_)[str(self.inc_).find('.') + 1:])
+
         self.display_text = display_text+' '         
 
         # Set up spacing
@@ -780,7 +784,8 @@ class Slider2():
         self.slider.bind('<MouseWheel>', lambda e: self.update_handle(e, True))         
 
         # Add the Entry to the frame
-        self.entry_width = 60
+        #self.entry_width = 60
+        self.entry_width = entry_width
         self.entry_x = self.frame_width-self.entry_width 
         self.entry_y = 0
 
@@ -844,7 +849,7 @@ class Slider2():
             self.amount = position
             
             if also_update_entry:
-                self.entry_string.set(str(position))
+                self.entry_string.set(str(format(position, '.' + str(self.decimal_places_) + 'f')))
             
             if request_frame:
                 self.function(self.data_type, self.name, use_markers=False)
