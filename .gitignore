@@ -3,6 +3,7 @@
 models/*.ckpt
 models/*.pth
 models/*.onnx
+models/*.pkl
 saved_parameters.json
 data.json
 merged_embeddings.txt
