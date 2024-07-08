@@ -13,6 +13,6 @@ merged_embeddings_bak.txt
 *.pyproj
 *.engine
 *.profile
-*.onnx
 *.timing
+tensorrt-engines/*.onnx
 .vscode/
