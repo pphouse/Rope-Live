@@ -6,8 +6,7 @@ models/*.onnx
 models/*.pkl
 saved_parameters.json
 data.json
-merged_embeddings.txt
-merged_embeddings_bak.txt
+merged_embeddings*.txt
 .vs
 *.sln
 *.pyproj
