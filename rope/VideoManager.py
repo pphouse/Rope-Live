@@ -138,19 +138,28 @@ class VideoManager():
         #Check if capture contains any cv2 stream or is it an empty list
         if not isinstance(self.capture, (list)):
             vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)) 
-            print(vid_height, vid_width)
+            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
             self.disable_virtualcam()
-            self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
+            try:
+                self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
+            except Exception as e:
+                print(e)
     def disable_virtualcam(self):
         if self.virtcam:
             self.virtcam.close()
         self.virtcam = False
         # print("Disable hello")
     def webcam_selected(self, file):
-        if ('Webcam' in file) and len(file)==8:
-            return True
-        return False
+        return ('Webcam' in file) and len(file)==8
+    
+    def change_webcam_resolution(self):
+        if self.video_file:
+            if self.webcam_selected(self.video_file):
+                if self.play:
+                    self.play_video('stop')
+                    time.sleep(1)
+                self.load_target_video(self.video_file)
+                self.add_action('clear_faces_stop_swap', None)
 
     def load_target_video( self, file ):
         # If we already have a video loaded, release it
@@ -167,8 +176,9 @@ class VideoManager():
         if self.webcam_selected(file):
             webcam_index = int(file[-1])
             self.capture = cv2.VideoCapture(webcam_index, cv2.CAP_DSHOW)
-            self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-            self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            res_width, res_height = self.parameters['WebCamMaxResolSel'].split('x')
+            self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, int(res_width))
+            self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, int(res_height))
             self.fps = 30
 
         else:
@@ -475,10 +485,7 @@ class VideoManager():
                     if self.control['VirtualCameraSwitch'] and self.virtcam:
                         # print("virtcam",self.virtcam)
                         try:
-                            # self.virtcam.send(cv2.resize(temp[0], (640,480), interpolation=cv2.INTER_CUBIC) )
-                            # self.virtcam.send(cv2.flip(temp[0],1),)
                             self.virtcam.send(temp[0])
-
                             self.virtcam.sleep_until_next_frame()
                         except Exception as e:
                             print(e)

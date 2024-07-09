@@ -835,7 +835,7 @@ class GUI(tk.Tk):
         self.layer['parameters_canvas'] = tk.Canvas(self.layer['parameter_frame'], style.canvas_frame_label_3, bd=0, width=width)
         self.layer['parameters_canvas'].grid(row=1, column=0, sticky='NEWS', pady=0, padx=0)
 
-        self.layer['parameters_frame'] = tk.Frame(self.layer['parameters_canvas'], style.canvas_frame_label_3, bd=0, width=width, height=1490)
+        self.layer['parameters_frame'] = tk.Frame(self.layer['parameters_canvas'], style.canvas_frame_label_3, bd=0, width=width, height=1540)
         self.layer['parameters_frame'].grid(row=0, column=0, sticky='NEWS', pady=0, padx=0)
 
         self.layer['parameters_canvas'].create_window(0, 0, window = self.layer['parameters_frame'], anchor='nw')
@@ -866,6 +866,10 @@ class GUI(tk.Tk):
         self.static_widget['9'] = GE.Separator_x(self.layer['parameters_frame'], 0, row)
         row += bottom_border_delta
         #
+
+        #Webcam Max Resolution
+        self.widget['WebCamMaxResolSel'] = GE.TextSelection(self.layer['parameters_frame'], 'WebCamMaxResolSel', 'Webcam Resolution', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.72)
+        row += row_delta
 
         #Virtual Cam
         self.widget['VirtualCameraSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'VirtualCameraSwitch', 'Send Frames to Virtual Camera', 3, self.toggle_virtualcam, 'control', 398, 20, 1, row)
@@ -1206,6 +1210,10 @@ class GUI(tk.Tk):
                 self.clear_mem()
                 self.models.delete_models()
                 torch.cuda.empty_cache()
+
+            elif name=='WebCamMaxResolSel':
+                # self.add_action(load_target_video()
+                self.add_action('change_webcam_resolution')
             #
         elif mode=='control':
             self.control[name] =  self.widget[name].get()
@@ -2600,3 +2608,9 @@ class GUI(tk.Tk):
 
     def disable_record_button(self):
         self.widget['TLRecButton'].disable_button()
+
+    # def change_webcam_resolution(self, mode, name, use_markers=False):
+    #     self.parameters[name] = self.widget[name].get()
+    #     self.add_action('parameters', self.parameters)
+    #     self.add_action('change_webcam_resolution')
+

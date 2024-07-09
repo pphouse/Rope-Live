@@ -505,6 +505,10 @@ DEFAULT_DATA = {
 'RestorerTypeTextSelInfoText':      'RESTORER TYPE:\nSelect the Restorer type.\nSpeed: GPEN256>GFPGAN>CF>GPEN512>GPEN1024>GPEN2028',
 'RestorerTypeTextSelMode':          'GFPGAN',
 'RestorerTypeTextSelModes':         ['GFPGAN', 'CF', 'GP256', 'GP512', 'GP1024', 'GP2048'],
+
+'WebCamMaxResolSelInfoText':        "WEBCAM MAX RESOLUTION:\nSelect the maximum resolution to be used by the webcam",
+'WebCamMaxResolSelMode':            '1920x1080',
+'WebCamMaxResolSelModes':           ['384x216', '640x360', '1280x720', '1920x1080'],
 'MergeTextSelInfoText':      'INPUT FACES MERGE MATH:\nWhen shift-clicking face for merging, determines how the embedding vectors are combined.',
 'MergeTextSelMode':          'Mean',
 'MergeTextSelModes':         ['Mean', 'Median'],
