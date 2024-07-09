@@ -2552,14 +2552,13 @@ class GUI(tk.Tk):
             self.add_action('stop_ffplay', None)
         else:
             self.add_action('play_video', 'stop_from_gui')
-            if self.widget['TLPlayButton'].get():
-                self.add_action('play_video', 'play')
-
-
 
         self.widget['AudioButton'].toggle_button()
         self.control['AudioButton'] = self.widget['AudioButton'].get()        
         self.add_action('control', self.control)
+
+        if self.widget['TLPlayButton'].get():
+            self.add_action('play_video', 'play')
         
     def toggle_maskview(self):
         self.widget['MaskViewButton'].toggle_button()
