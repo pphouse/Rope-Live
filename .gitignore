@@ -1,14 +1,15 @@
 **/__pycache__/**
 
-models/*.ckpt
-models/*.pth
-models/*.onnx
+*.ckpt
+*.pth
+*.onnx
+*.engine
+*.profile
+*.timing
 saved_parameters.json
 data.json
-merged_embeddings.txt
-merged_embeddings_bak.txt
+merged_embeddings*.txt
 .vs
 *.sln
 *.pyproj
-tensorrt-engines/
 .vscode/

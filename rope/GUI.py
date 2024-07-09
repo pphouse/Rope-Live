@@ -868,7 +868,7 @@ class GUI(tk.Tk):
         #
 
         #Virtual Cam
-        self.widget['VirtualCameraSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'VirtualCameraSwitch', 'Virtual Camera', 3, self.toggle_virtualcam, 'control', 398, 20, 1, row)
+        self.widget['VirtualCameraSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'VirtualCameraSwitch', 'Send Frames to Virtual Camera', 3, self.toggle_virtualcam, 'control', 398, 20, 1, row)
         row += row_delta
 
         # Restore
@@ -1203,6 +1203,7 @@ class GUI(tk.Tk):
                     self.load_input_faces()
             elif name == "ProvidersPriorityTextSel":
                 self.models.switch_providers_priority(self.parameters[name])
+                self.clear_mem()
                 self.models.delete_models()
                 torch.cuda.empty_cache()
             #
@@ -1936,7 +1937,7 @@ class GUI(tk.Tk):
         self.widget['AutoSwapButton'].toggle_button()
 
 
-    def load_target(self, button, media_file, media_type):
+    def load_target(self, button, media_file, media_type,):
         # Make sure the video stops playing
         self.toggle_play_video('stop')
         self.image_loaded = False
@@ -2566,8 +2567,6 @@ class GUI(tk.Tk):
                     self.widget[key].set(value, request_frame=False)
                     if key == "ProvidersPriorityTextSel":
                         self.models.switch_providers_priority(value)
-                        self.models.delete_models()
-                        torch.cuda.empty_cache()
 
             self.add_action('parameters', self.parameters)            
             self.add_action('control', self.control)
@@ -2598,3 +2597,6 @@ class GUI(tk.Tk):
             self.add_action('enable_virtualcam')
         else:
             self.add_action('disable_virtualcam')
+
+    def disable_record_button(self):
+        self.widget['TLRecButton'].disable_button()
