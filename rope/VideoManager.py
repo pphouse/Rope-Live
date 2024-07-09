@@ -352,6 +352,7 @@ class VideoManager():
                         '-stats',
                         '-loglevel',  'quiet', 
                         '-sync',  'audio',
+                        '-af', f'atempo={self.parameters["AudioSpeedSlider"]}',
                         self.video_file]
  
                 
@@ -359,15 +360,17 @@ class VideoManager():
 
                 # Parse the console to find where the audio started
                 while True:
-                    temp = self.audio_sp.stdout.read(69)    
+                    temp = self.audio_sp.stdout.read(69)
+                    # sought_time = float(temp[:7])
                     if temp[:7] != b'    nan':
-                        sought_time = float(temp[:7])
-                        self.current_frame = int(self.fps*sought_time)
-                        
-                        self.capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
-
+                        try:
+                            sought_time = float(temp[:7].strip()) 
+                            self.current_frame = int(self.fps*sought_time)
+                            
+                            self.capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
+                        except Exception as e:
+                            print(e)
                         break
-
 
 #'    nan    :  0.000
 #'   1.25 M-A:  0.000 fd=   0 aq=   12KB vq=    0KB sq=    0B f=0/0' 
@@ -382,8 +385,8 @@ class VideoManager():
             if index != -1:
                 self.current_frame = min_frame-1   
             
-            if self.control['AudioButton']:    
-                self.audio_sp.terminate()
+            if self.control['AudioButton']: 
+                self.add_action('stop_ffplay', None)
 
             torch.cuda.empty_cache()
                 
@@ -396,7 +399,7 @@ class VideoManager():
                 self.current_frame = min_frame-1   
             
             if self.control['AudioButton']:    
-                self.audio_sp.terminate()
+                self.add_action('stop_ffplay', None)
 
             torch.cuda.empty_cache()
 

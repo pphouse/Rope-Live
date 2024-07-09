@@ -8,6 +8,8 @@ import rope.GUI as GUI
 import rope.VideoManager as VM
 import rope.Models as Models
 from rope.external.clipseg import CLIPDensePredT
+import subprocess
+import os
 
 resize_delay = 1
 mem_delay = 1
@@ -136,13 +138,17 @@ def coordinator():
 
         elif action[0][0] == "update_markers_canvas":
             gui.update_markers_canvas()
+            action.pop(0)    
+
+        elif action[0][0] == "stop_ffplay":
+            check_and_kill_ffplay()
             action.pop(0)        
 
         # Face Landmarks
         elif action[0][0] == "face_landmarks":
             vm.face_landmarks = action[0][1]
             action.pop(0)
-            
+         
         else:
             print("Action not found: "+action[0][0]+" "+str(action[0][1]))
             action.pop(0)
@@ -167,7 +173,18 @@ def coordinator():
     # print(time.time() - start)    
     
 
-
+def check_and_kill_ffplay():
+    try:
+        # 'tasklist' lists all running processes, 'findstr' filters the output for ffplay.exe
+        output = subprocess.check_output('tasklist | findstr ffplay.exe', shell=True).decode()
+        if 'ffplay.exe' in output:
+            # ffplay.exe is running, so we kill it
+            os.system("taskkill /f /t /im ffplay.exe 1>nul 2>&1")
+            return True  # Indicate that the process was running and has been killed
+    except subprocess.CalledProcessError:
+        # findstr returns a non-zero exit code if no matches are found
+        pass
+    return False  # Indicate that the process was not running()
 
     
 def load_clip_model():
