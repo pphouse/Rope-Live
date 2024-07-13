@@ -220,6 +220,9 @@ DEFAULT_DATA = {
 'VirtualCameraSwitchState':         False,
 'VirtualCameraSwitchInfoText':      'VIRTUAL CAMERA:\nFeed the swapped video output to virtual camera for using in external applications',
 
+'VirtualCameraSwitchState':         False,
+'VirtualCameraSwitchInfoText':      'VIRTUAL CAMERA:\nFeed the swapped video output to virtual camera for using in external applications',
+
 # Sliders
 'BlendSliderAmount':                5,
 'BlendSliderInc':                   1,  
@@ -457,6 +460,12 @@ DEFAULT_DATA = {
 'VideoQualSliderMax':               50,
 'VideoQualSliderMin':               0,
 
+'AudioSpeedSliderAmount':           1.00,
+'AudioSpeedSliderInc':              0.01,
+'AudioSpeedSliderInfoText':         'AUDIO PLAYBACK SPEED:\nAudo playback when "Enable Audio" is on',
+'AudioSpeedSliderMax':              2.00,
+'AudioSpeedSliderMin':              0.50,
+
 'AudioSpeedSliderAmount':           1,
 'AudioSpeedSliderInc':              0.1,
 'AudioSpeedSliderInfoText':         'AUDIO PLAYBACK SPEED:\nAudo playback when "Enable Audio" is on',
@@ -474,6 +483,36 @@ DEFAULT_DATA = {
 'ColorGammaSliderInfoText':               'GAMMA VALUE:\nChanges Gamma.',
 'ColorGammaSliderMax':                    2,
 'ColorGammaSliderMin':                    0,
+
+'ColorBrightSliderAmount':                 1,
+'ColorBrightSliderInc':                    0.01,
+'ColorBrightSliderInfoText':               'Bright VALUE:\nChanges Bright.',
+'ColorBrightSliderMax':                    2,
+'ColorBrightSliderMin':                    0,
+
+'ColorContrastSliderAmount':                 1,
+'ColorContrastSliderInc':                    0.01,
+'ColorContrastSliderInfoText':               'Contrast VALUE:\nChanges Contrast.',
+'ColorContrastSliderMax':                    2,
+'ColorContrastSliderMin':                    0,
+
+'ColorSaturationSliderAmount':                 1,
+'ColorSaturationSliderInc':                    0.01,
+'ColorSaturationSliderInfoText':               'Saturation VALUE:\nChanges Saturation.',
+'ColorSaturationSliderMax':                    2,
+'ColorSaturationSliderMin':                    0,
+
+'ColorSharpnessSliderAmount':                 1,
+'ColorSharpnessSliderInc':                    0.1,
+'ColorSharpnessSliderInfoText':               'Sharpness VALUE:\nChanges Sharpness.',
+'ColorSharpnessSliderMax':                    2,
+'ColorSharpnessSliderMin':                    0,
+
+'ColorHueSliderAmount':                 0,
+'ColorHueSliderInc':                    0.01,
+'ColorHueSliderInfoText':               'Hue VALUE:\nChanges Hue.',
+'ColorHueSliderMax':                    0.5,
+'ColorHueSliderMin':                    -0.5,
 
 # Text Selection
 'DetectTypeTextSelInfoText':        'FACE DETECTION MODEL:\nSelect the face detection model. Mostly only subtle differences, but can significant differences when the face is at extreme angles or covered.',
@@ -511,6 +550,10 @@ DEFAULT_DATA = {
 'RestorerTypeTextSelInfoText':      'RESTORER TYPE:\nSelect the Restorer type.\nSpeed: GPEN256>GFPGAN>CF>GPEN512>GPEN1024>GPEN2028',
 'RestorerTypeTextSelMode':          'GFPGAN',
 'RestorerTypeTextSelModes':         ['GFPGAN', 'CF', 'GP256', 'GP512', 'GP1024', 'GP2048'],
+
+'WebCamMaxResolSelInfoText':        "WEBCAM MAX RESOLUTION:\nSelect the maximum resolution to be used by the webcam",
+'WebCamMaxResolSelMode':            '1920x1080',
+'WebCamMaxResolSelModes':           ['384x216', '640x360', '1280x720', '1920x1080'],
 
 'WebCamMaxResolSelInfoText':        "WEBCAM MAX RESOLUTION:\nSelect the maximum resolution to be used by the webcam",
 'WebCamMaxResolSelMode':            '1920x1080',
