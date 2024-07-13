@@ -835,6 +835,7 @@ class GUI(tk.Tk):
         self.layer['parameters_canvas'] = tk.Canvas(self.layer['parameter_frame'], style.canvas_frame_label_3, bd=0, width=width)
         self.layer['parameters_canvas'].grid(row=1, column=0, sticky='NEWS', pady=0, padx=0)
 
+        self.layer['parameters_frame'] = tk.Frame(self.layer['parameters_canvas'], style.canvas_frame_label_3, bd=0, width=width, height=1650)
         self.layer['parameters_frame'] = tk.Frame(self.layer['parameters_canvas'], style.canvas_frame_label_3, bd=0, width=width, height=1565)
         self.layer['parameters_frame'].grid(row=0, column=0, sticky='NEWS', pady=0, padx=0)
 
@@ -995,7 +996,17 @@ class GUI(tk.Tk):
         row += row_delta
         self.widget['ColorBlueSlider'] = GE.Slider2(self.layer['parameters_frame'], 'ColorBlueSlider', 'Blue', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)
         row += row_delta
-        self.widget['ColorGammaSlider'] = GE.Slider2(self.layer['parameters_frame'], 'ColorGammaSlider', 'Gamma', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)
+        self.widget['ColorBrightSlider'] = GE.Slider2(self.layer['parameters_frame'], 'ColorBrightSlider', 'Brightness', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)   
+        row += row_delta
+        self.widget['ColorContrastSlider'] = GE.Slider2(self.layer['parameters_frame'], 'ColorContrastSlider', 'Contrast', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)   
+        row += row_delta
+        self.widget['ColorSaturationSlider'] = GE.Slider2(self.layer['parameters_frame'], 'ColorSaturationSlider', 'Saturation', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)   
+        row += row_delta
+        self.widget['ColorSharpnessSlider'] = GE.Slider2(self.layer['parameters_frame'], 'ColorSharpnessSlider', 'Sharpness', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)   
+        row += row_delta
+        self.widget['ColorHueSlider'] = GE.Slider2(self.layer['parameters_frame'], 'ColorHueSlider', 'Hue', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)   
+        row += row_delta        
+        self.widget['ColorGammaSlider'] = GE.Slider2(self.layer['parameters_frame'], 'ColorGammaSlider', 'Gamma', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)     
         row += top_border_delta
         self.static_widget['6'] = GE.Separator_x(self.layer['parameters_frame'], 0, row)
         row += bottom_border_delta
@@ -1079,6 +1090,8 @@ class GUI(tk.Tk):
         self.widget['RecordTypeTextSel'] = GE.TextSelection(self.layer['parameters_frame'], 'RecordTypeTextSel', 'Record Type', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.62)
         row += row_delta
         self.widget['VideoQualSlider'] = GE.Slider2(self.layer['parameters_frame'], 'VideoQualSlider', 'FFMPEG Quality', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)
+        row += row_delta
+        self.widget['AudioSpeedSlider'] = GE.Slider2(self.layer['parameters_frame'], 'AudioSpeedSlider', 'Audio Playback Speed', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)
         row += row_delta
         self.widget['AudioSpeedSlider'] = GE.Slider2(self.layer['parameters_frame'], 'AudioSpeedSlider', 'Audio Playback Speed', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.62)
         row += row_delta
@@ -1211,6 +1224,10 @@ class GUI(tk.Tk):
                 self.models.switch_providers_priority(self.parameters[name])
                 self.models.delete_models()
                 torch.cuda.empty_cache()
+
+            elif name=='WebCamMaxResolSel':
+                # self.add_action(load_target_video()
+                self.add_action('change_webcam_resolution')
 
             elif name=='WebCamMaxResolSel':
                 # self.add_action(load_target_video()
@@ -1840,6 +1857,24 @@ class GUI(tk.Tk):
         except:
             pass
 
+        videos = []
+        #Webcam setup
+        try:
+            for i in range(1):
+                camera_capture = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                success, webcam_frame = camera_capture.read() 
+                ratio = float(webcam_frame.shape[0]) / webcam_frame.shape[1]
+
+                new_height = 50
+                new_width = int(new_height / ratio)
+                webcam_frame = cv2.resize(webcam_frame, (new_width, new_height))
+                webcam_frame = cv2.cvtColor(webcam_frame, cv2.COLOR_BGR2RGB)
+                webcam_frame[:new_height, :new_width, :] = webcam_frame
+                videos.append([webcam_frame, f'Webcam {i}'])
+                camera_capture.release()
+        except:
+            pass
+
         # Recursively read all media files from directory
         directory =  self.json_dict["source videos"]
         filenames = [os.path.join(dirpath,f) for (dirpath, dirnames, filenames) in os.walk(directory) for f in filenames]
@@ -2145,6 +2180,10 @@ class GUI(tk.Tk):
     def set_player_buttons_to_inactive(self):
         self.widget['TLRecButton'].disable_button()
         self.widget['TLPlayButton'].disable_button()
+
+
+    def set_virtual_cam_toggle_disable(self):
+        self.widget['VirtualCameraSwitch'].toggle_switch(False)
 
 
     def set_virtual_cam_toggle_disable(self):

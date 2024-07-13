@@ -22,6 +22,7 @@ import rope.FaceUtil as faceutil
 
 import inspect #print(inspect.currentframe().f_back.f_code.co_name, 'resize_image')
 import pyvirtualcam
+import pyvirtualcam
 device = 'cuda'
 
 # cap = cv2.VideoCapture(0)
@@ -31,6 +32,7 @@ lock=threading.Lock()
 
 class VideoManager():  
     def __init__(self, models ):
+        self.virtcam = False
         self.virtcam = False
         self.models = models
         # Model related
@@ -160,6 +162,32 @@ class VideoManager():
                     time.sleep(1)
                 self.load_target_video(self.video_file)
                 self.add_action('clear_faces_stop_swap', None)
+    def enable_virtualcam(self):
+        #Check if capture contains any cv2 stream or is it an empty list
+        if not isinstance(self.capture, (list)):
+            vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.disable_virtualcam()
+            try:
+                self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
+            except Exception as e:
+                print(e)
+    def disable_virtualcam(self):
+        if self.virtcam:
+            self.virtcam.close()
+        self.virtcam = False
+        # print("Disable hello")
+    def webcam_selected(self, file):
+        return ('Webcam' in file) and len(file)==8
+    
+    def change_webcam_resolution(self):
+        if self.video_file:
+            if self.webcam_selected(self.video_file):
+                if self.play:
+                    self.play_video('stop')
+                    time.sleep(1)
+                self.load_target_video(self.video_file)
+                self.add_action('clear_faces_stop_swap', None)
 
     def load_target_video( self, file ):
         # If we already have a video loaded, release it
@@ -194,6 +222,10 @@ class VideoManager():
             self.target_video = file
             self.is_video_loaded = True
             self.is_image_loaded = False
+            if not self.webcam_selected(file):
+                self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            else:
+                self.video_frame_total = 99999999
             if not self.webcam_selected(file):
                 self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
             else:
@@ -353,10 +385,11 @@ class VideoManager():
                         '-loglevel',  'quiet', 
                         '-sync',  'audio',
                         '-af', f'atempo={self.parameters["AudioSpeedSlider"]}',
+                        '-af', f'atempo={self.parameters["AudioSpeedSlider"]}',
                         self.video_file]
  
                 
-                self.audio_sp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                self.audio_sp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text = True)
 
                 # Parse the console to find where the audio started
                 while True:
@@ -416,7 +449,6 @@ class VideoManager():
 
            # Initialize
             self.timer = time.time()
-            frame_width = int(self.capture.get(3))
             frame_width = int(self.capture.get(3))
             frame_height = int(self.capture.get(4))
 
@@ -492,6 +524,16 @@ class VideoManager():
                             self.virtcam.sleep_until_next_frame()
                         except Exception as e:
                             print(e)
+                    avg_fps = self.fps / self.fps_average[-1] if self.fps_average else 10
+
+                    # self.send_to_virtual_camera(temp[0], 15)
+                    if self.control['VirtualCameraSwitch'] and self.virtcam:
+                        # print("virtcam",self.virtcam)
+                        try:
+                            self.virtcam.send(temp[0])
+                            self.virtcam.sleep_until_next_frame()
+                        except Exception as e:
+                            print(e)
                     if len(self.fps_average) >= floor(self.fps):
                         fps = round(np.average(self.fps_average), 2)
                         msg = "%s fps, %s process time" % (fps, round(self.process_qs[index]['ThreadTime'], 4))
@@ -526,10 +568,34 @@ class VideoManager():
                         
                         elif self.parameters['RecordTypeTextSel']=='OPENCV':
                             self.sp.write(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                    if self.process_qs[index]['Status'] == 'finished':
+                        image = self.process_qs[index]['ProcessedFrame']  
+                        
+                        if self.parameters['RecordTypeTextSel']=='FFMPEG':
+
+                            pil_image = Image.fromarray(image)
+                            pil_image.save(self.sp.stdin, 'BMP')   
+                        
+                        elif self.parameters['RecordTypeTextSel']=='OPENCV':
+                            self.sp.write(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
                         temp = [image, self.process_qs[index]['FrameNumber']]
                         self.frame_q.append(temp)
+                        temp = [image, self.process_qs[index]['FrameNumber']]
+                        self.frame_q.append(temp)
 
+                        # Close video and process
+                        if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:
+                            self.play_video("stop")
+                            stop_time = float(self.capture.get(cv2.CAP_PROP_POS_FRAMES) / float(self.fps))
+                            if stop_time == 0:
+                                stop_time = float(self.video_frame_total) / float(self.fps)
+                            
+                            if self.parameters['RecordTypeTextSel']=='FFMPEG':
+                                self.sp.stdin.close()
+                                self.sp.wait()
+                            elif self.parameters['RecordTypeTextSel']=='OPENCV':    
+                                self.sp.release()
                         # Close video and process
                         if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:
                             self.play_video("stop")
@@ -558,7 +624,27 @@ class VideoManager():
                             
                             four = subprocess.run(args)
                             os.remove(self.temp_file)
+                            orig_file = self.target_video
+                            final_file = self.output+self.file_name[1]
+                            print("adding audio...")    
+                            args = ["ffmpeg",
+                                    '-hide_banner',
+                                    '-loglevel',    'error',
+                                    "-i", self.temp_file,
+                                    "-ss", str(self.start_time), "-to", str(stop_time), "-i",  orig_file,
+                                    "-c",  "copy", # may be c:v
+                                    "-map", "0:v:0", "-map", "1:a:0?",
+                                    "-shortest",
+                                    final_file]
+                            
+                            four = subprocess.run(args)
+                            os.remove(self.temp_file)
 
+                            timef= time.time() - self.timer 
+                            self.record = False
+                            print('Video saved as:', final_file)
+                            msg = "Total time: %s s." % (round(timef,1))
+                            print(msg)
                             timef= time.time() - self.timer 
                             self.record = False
                             print('Video saved as:', final_file)
@@ -574,6 +660,13 @@ class VideoManager():
         else:
             self.record=False  
             self.add_action('disable_record_button', False)      
+                            
+            self.total_thread_time = []
+            self.process_qs[index]['Status'] = 'clear'
+            self.process_qs[index]['FrameNumber'] = []
+            self.process_qs[index]['Thread'] = []
+            self.frame_timer = time.time()
+     
     # @profile
     def thread_video_read(self, frame_number):  
         with lock:
@@ -967,20 +1060,6 @@ class VideoManager():
             # swap = t256(swap)
             # swap = t512(swap)
 
-        
-        # Apply color corerctions
-        if parameters['ColorSwitch']:
-            # print(parameters['ColorGammaSlider'])
-            swap = torch.unsqueeze(swap,0)
-            swap = v2.functional.adjust_gamma(swap, parameters['ColorGammaSlider'], 1.0)
-            swap = torch.squeeze(swap)
-            swap = swap.permute(1, 2, 0).type(torch.float32)
-
-            del_color = torch.tensor([parameters['ColorRedSlider'], parameters['ColorGreenSlider'], parameters['ColorBlueSlider']], device=device)
-            swap += del_color
-            swap = torch.clamp(swap, min=0., max=255.)
-            swap = swap.permute(2, 0, 1).type(torch.uint8)        
-
         # Create border mask
         border_mask = torch.ones((128, 128), dtype=torch.float32, device=device)
         border_mask = torch.unsqueeze(border_mask,0)
@@ -1014,7 +1093,25 @@ class VideoManager():
         # Restorer
         if parameters["RestorerSwitch"]: 
             swap = self.func_w_test('Restorer', self.apply_restorer, swap, parameters)  
-        
+
+        # Apply color corerctions
+        if parameters['ColorSwitch']:
+            # print(parameters['ColorGammaSlider'])
+            swap = torch.unsqueeze(swap,0)
+            swap = v2.functional.adjust_gamma(swap, parameters['ColorGammaSlider'], 1.0)
+            swap = torch.squeeze(swap)
+            swap = swap.permute(1, 2, 0).type(torch.float32)
+
+            del_color = torch.tensor([parameters['ColorRedSlider'], parameters['ColorGreenSlider'], parameters['ColorBlueSlider']], device=device)
+            swap += del_color                 
+            swap = torch.clamp(swap, min=0., max=255.)
+            swap = swap.permute(2, 0, 1).type(torch.uint8)    
+
+            swap = v2.functional.adjust_brightness(swap, parameters['ColorBrightSlider'])
+            swap = v2.functional.adjust_contrast(swap, parameters['ColorContrastSlider'])
+            swap = v2.functional.adjust_saturation(swap, parameters['ColorSaturationSlider'])
+            swap = v2.functional.adjust_sharpness(swap, parameters['ColorSharpnessSlider'])
+            swap = v2.functional.adjust_hue(swap, parameters['ColorHueSlider'])
             
         # Occluder
         if parameters["OccluderSwitch"]:
@@ -1114,7 +1211,7 @@ class VideoManager():
             img = img.permute(2,0,1)
 
         return img
-        
+
     # @profile    
     def apply_occlusion(self, img, amount):        
         img = torch.div(img, 255)
