@@ -509,21 +509,10 @@ class VideoManager():
             if index != -1:
                 if self.process_qs[index]['Status'] == 'finished':
                     temp = [self.process_qs[index]['ProcessedFrame'], self.process_qs[index]['FrameNumber']]
-
                     self.frame_q.append(temp)
 
                     # Report fps, other data
                     self.fps_average.append(1.0/time_diff)
-                    avg_fps = self.fps / self.fps_average[-1] if self.fps_average else 10
-
-                    # self.send_to_virtual_camera(temp[0], 15)
-                    if self.control['VirtualCameraSwitch'] and self.virtcam:
-                        # print("virtcam",self.virtcam)
-                        try:
-                            self.virtcam.send(temp[0])
-                            self.virtcam.sleep_until_next_frame()
-                        except Exception as e:
-                            print(e)
                     avg_fps = self.fps / self.fps_average[-1] if self.fps_average else 10
 
                     # self.send_to_virtual_camera(temp[0], 15)
@@ -554,9 +543,6 @@ class VideoManager():
                 index, min_frame = self.find_lowest_frame(self.process_qs)           
                 
                 if index != -1:
-
-
-
                 # If the swapper thread has finished generating a frame
                     if self.process_qs[index]['Status'] == 'finished':
                         image = self.process_qs[index]['ProcessedFrame']  
@@ -568,34 +554,10 @@ class VideoManager():
                         
                         elif self.parameters['RecordTypeTextSel']=='OPENCV':
                             self.sp.write(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-                    if self.process_qs[index]['Status'] == 'finished':
-                        image = self.process_qs[index]['ProcessedFrame']  
-                        
-                        if self.parameters['RecordTypeTextSel']=='FFMPEG':
-
-                            pil_image = Image.fromarray(image)
-                            pil_image.save(self.sp.stdin, 'BMP')   
-                        
-                        elif self.parameters['RecordTypeTextSel']=='OPENCV':
-                            self.sp.write(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
                         temp = [image, self.process_qs[index]['FrameNumber']]
                         self.frame_q.append(temp)
-                        temp = [image, self.process_qs[index]['FrameNumber']]
-                        self.frame_q.append(temp)
 
-                        # Close video and process
-                        if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:
-                            self.play_video("stop")
-                            stop_time = float(self.capture.get(cv2.CAP_PROP_POS_FRAMES) / float(self.fps))
-                            if stop_time == 0:
-                                stop_time = float(self.video_frame_total) / float(self.fps)
-                            
-                            if self.parameters['RecordTypeTextSel']=='FFMPEG':
-                                self.sp.stdin.close()
-                                self.sp.wait()
-                            elif self.parameters['RecordTypeTextSel']=='OPENCV':    
-                                self.sp.release()
                         # Close video and process
                         if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:
                             self.play_video("stop")
@@ -624,27 +586,7 @@ class VideoManager():
                             
                             four = subprocess.run(args)
                             os.remove(self.temp_file)
-                            orig_file = self.target_video
-                            final_file = self.output+self.file_name[1]
-                            print("adding audio...")    
-                            args = ["ffmpeg",
-                                    '-hide_banner',
-                                    '-loglevel',    'error',
-                                    "-i", self.temp_file,
-                                    "-ss", str(self.start_time), "-to", str(stop_time), "-i",  orig_file,
-                                    "-c",  "copy", # may be c:v
-                                    "-map", "0:v:0", "-map", "1:a:0?",
-                                    "-shortest",
-                                    final_file]
-                            
-                            four = subprocess.run(args)
-                            os.remove(self.temp_file)
 
-                            timef= time.time() - self.timer 
-                            self.record = False
-                            print('Video saved as:', final_file)
-                            msg = "Total time: %s s." % (round(timef,1))
-                            print(msg)
                             timef= time.time() - self.timer 
                             self.record = False
                             print('Video saved as:', final_file)
@@ -659,13 +601,7 @@ class VideoManager():
                         self.frame_timer = time.time()
         else:
             self.record=False  
-            self.add_action('disable_record_button', False)      
-                            
-            self.total_thread_time = []
-            self.process_qs[index]['Status'] = 'clear'
-            self.process_qs[index]['FrameNumber'] = []
-            self.process_qs[index]['Thread'] = []
-            self.frame_timer = time.time()
+            self.add_action('disable_record_button', False)  
      
     # @profile
     def thread_video_read(self, frame_number):  
