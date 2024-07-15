@@ -1066,8 +1066,8 @@ class VideoManager():
         
         # if parameters['BorderState']:
         top = parameters['BorderTopSlider']
-        left = parameters['BorderSidesSlider']
-        right = 128-parameters['BorderSidesSlider']
+        left = parameters['BorderLeftSlider']
+        right = 128-parameters['BorderRightSlider']
         bottom = 128-parameters['BorderBottomSlider']
 
         border_mask[:, :top, :] = 0
@@ -1097,7 +1097,7 @@ class VideoManager():
         # Apply color corerctions
         if parameters['ColorSwitch']:
             # print(parameters['ColorGammaSlider'])
-            swap = torch.unsqueeze(swap,0)
+            swap = torch.unsqueeze(swap,0).contiguous()
             swap = v2.functional.adjust_gamma(swap, parameters['ColorGammaSlider'], 1.0)
             swap = torch.squeeze(swap)
             swap = swap.permute(1, 2, 0).type(torch.float32)
@@ -1119,6 +1119,10 @@ class VideoManager():
             mask = t128(mask)  
             swap_mask = torch.mul(swap_mask, mask)
 
+        if parameters["DFLXSegSwitch"]:
+            img_mask = self.func_w_test('occluder', self.apply_dfl_xseg , original_face_256)
+            img_mask = t128(img_mask)
+            swap_mask = torch.mul(swap_mask, 1 - img_mask)
 
         if parameters["FaceParserSwitch"]:
             mask = self.apply_face_parser(swap, parameters)
@@ -1215,7 +1219,7 @@ class VideoManager():
     # @profile    
     def apply_occlusion(self, img, amount):        
         img = torch.div(img, 255)
-        img = torch.unsqueeze(img, 0)
+        img = torch.unsqueeze(img, 0).contiguous()
         outpred = torch.ones((256,256), dtype=torch.float32, device=device).contiguous()
         
         self.models.run_occluder(img, outpred)        
@@ -1247,7 +1251,23 @@ class VideoManager():
             outpred = torch.add(outpred, 1)
             
         outpred = torch.reshape(outpred, (1, 256, 256)) 
-        return outpred         
+        return outpred
+
+    def apply_dfl_xseg(self, img):
+        img = img.type(torch.float32)
+        img = torch.div(img, 255)
+        img = torch.unsqueeze(img, 0).contiguous()
+        outpred = torch.ones((256,256), dtype=torch.float32, device=device).contiguous()
+        
+        self.models.run_dfl_xseg(img, outpred)
+        
+        outpred = torch.clamp(outpred, min=0.0, max=1.0)
+        outpred[outpred < 0.1] = 0
+        # invert values to mask areas to keep
+        outpred = 1.0 - outpred
+        outpred = torch.unsqueeze(outpred, 0).type(torch.float32)
+        
+        return outpred
     
       
     def apply_CLIPs(self, img, CLIPText, CLIPAmount):
@@ -1259,7 +1279,7 @@ class VideoManager():
         transform = transforms.Compose([transforms.ToTensor(),
                                         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]), 
                                         transforms.Resize((352, 352))])
-        CLIPimg = transform(img).unsqueeze(0)
+        CLIPimg = transform(img).unsqueeze(0).contiguous()
         
         if CLIPText != "":
             prompts = CLIPText.split(',')
