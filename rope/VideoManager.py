@@ -22,6 +22,7 @@ import rope.FaceUtil as faceutil
 
 import inspect #print(inspect.currentframe().f_back.f_code.co_name, 'resize_image')
 import pyvirtualcam
+import pyvirtualcam
 device = 'cuda'
 
 # cap = cv2.VideoCapture(0)
@@ -31,6 +32,7 @@ lock=threading.Lock()
 
 class VideoManager():  
     def __init__(self, models ):
+        self.virtcam = False
         self.virtcam = False
         self.models = models
         # Model related
@@ -138,19 +140,54 @@ class VideoManager():
         #Check if capture contains any cv2 stream or is it an empty list
         if not isinstance(self.capture, (list)):
             vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)) 
-            print(vid_height, vid_width)
+            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
             self.disable_virtualcam()
-            self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
+            try:
+                self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
+            except Exception as e:
+                print(e)
     def disable_virtualcam(self):
         if self.virtcam:
             self.virtcam.close()
         self.virtcam = False
         # print("Disable hello")
     def webcam_selected(self, file):
-        if ('Webcam' in file) and len(file)==8:
-            return True
-        return False
+        return ('Webcam' in file) and len(file)==8
+    
+    def change_webcam_resolution(self):
+        if self.video_file:
+            if self.webcam_selected(self.video_file):
+                if self.play:
+                    self.play_video('stop')
+                    time.sleep(1)
+                self.load_target_video(self.video_file)
+                self.add_action('clear_faces_stop_swap', None)
+    def enable_virtualcam(self):
+        #Check if capture contains any cv2 stream or is it an empty list
+        if not isinstance(self.capture, (list)):
+            vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.disable_virtualcam()
+            try:
+                self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
+            except Exception as e:
+                print(e)
+    def disable_virtualcam(self):
+        if self.virtcam:
+            self.virtcam.close()
+        self.virtcam = False
+        # print("Disable hello")
+    def webcam_selected(self, file):
+        return ('Webcam' in file) and len(file)==8
+    
+    def change_webcam_resolution(self):
+        if self.video_file:
+            if self.webcam_selected(self.video_file):
+                if self.play:
+                    self.play_video('stop')
+                    time.sleep(1)
+                self.load_target_video(self.video_file)
+                self.add_action('clear_faces_stop_swap', None)
 
     def load_target_video( self, file ):
         # If we already have a video loaded, release it
@@ -167,8 +204,9 @@ class VideoManager():
         if self.webcam_selected(file):
             webcam_index = int(file[-1])
             self.capture = cv2.VideoCapture(webcam_index, cv2.CAP_DSHOW)
-            self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-            self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            res_width, res_height = self.parameters['WebCamMaxResolSel'].split('x')
+            self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, int(res_width))
+            self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, int(res_height))
             self.fps = 30
 
         else:
@@ -184,6 +222,10 @@ class VideoManager():
             self.target_video = file
             self.is_video_loaded = True
             self.is_image_loaded = False
+            if not self.webcam_selected(file):
+                self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            else:
+                self.video_frame_total = 99999999
             if not self.webcam_selected(file):
                 self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
             else:
@@ -342,22 +384,24 @@ class VideoManager():
                         '-stats',
                         '-loglevel',  'quiet', 
                         '-sync',  'audio',
+                        '-af', f'atempo={self.parameters["AudioSpeedSlider"]}',
                         self.video_file]
  
-                
                 self.audio_sp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
                 # Parse the console to find where the audio started
                 while True:
-                    temp = self.audio_sp.stdout.read(69)    
+                    temp = self.audio_sp.stdout.read(69)
+                    # sought_time = float(temp[:7])
                     if temp[:7] != b'    nan':
-                        sought_time = float(temp[:7])
-                        self.current_frame = int(self.fps*sought_time)
-                        
-                        self.capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
-
+                        try:
+                            sought_time = float(temp[:7].strip()) 
+                            self.current_frame = int(self.fps*sought_time)
+                            
+                            self.capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
+                        except Exception as e:
+                            print(e)
                         break
-
 
 #'    nan    :  0.000
 #'   1.25 M-A:  0.000 fd=   0 aq=   12KB vq=    0KB sq=    0B f=0/0' 
@@ -372,8 +416,8 @@ class VideoManager():
             if index != -1:
                 self.current_frame = min_frame-1   
             
-            if self.control['AudioButton']:    
-                self.audio_sp.terminate()
+            if self.control['AudioButton']: 
+                self.add_action('stop_ffplay', None)
 
             torch.cuda.empty_cache()
                 
@@ -386,7 +430,7 @@ class VideoManager():
                 self.current_frame = min_frame-1   
             
             if self.control['AudioButton']:    
-                self.audio_sp.terminate()
+                self.add_action('stop_ffplay', None)
 
             torch.cuda.empty_cache()
 
@@ -403,7 +447,6 @@ class VideoManager():
 
            # Initialize
             self.timer = time.time()
-            frame_width = int(self.capture.get(3))
             frame_width = int(self.capture.get(3))
             frame_height = int(self.capture.get(4))
 
@@ -464,7 +507,6 @@ class VideoManager():
             if index != -1:
                 if self.process_qs[index]['Status'] == 'finished':
                     temp = [self.process_qs[index]['ProcessedFrame'], self.process_qs[index]['FrameNumber']]
-
                     self.frame_q.append(temp)
 
                     # Report fps, other data
@@ -475,10 +517,7 @@ class VideoManager():
                     if self.control['VirtualCameraSwitch'] and self.virtcam:
                         # print("virtcam",self.virtcam)
                         try:
-                            # self.virtcam.send(cv2.resize(temp[0], (640,480), interpolation=cv2.INTER_CUBIC) )
-                            # self.virtcam.send(cv2.flip(temp[0],1),)
                             self.virtcam.send(temp[0])
-
                             self.virtcam.sleep_until_next_frame()
                         except Exception as e:
                             print(e)
@@ -502,9 +541,6 @@ class VideoManager():
                 index, min_frame = self.find_lowest_frame(self.process_qs)           
                 
                 if index != -1:
-
-
-
                 # If the swapper thread has finished generating a frame
                     if self.process_qs[index]['Status'] == 'finished':
                         image = self.process_qs[index]['ProcessedFrame']  
@@ -563,7 +599,8 @@ class VideoManager():
                         self.frame_timer = time.time()
         else:
             self.record=False  
-            self.add_action('disable_record_button', False)      
+            self.add_action('disable_record_button', False)  
+     
     # @profile
     def thread_video_read(self, frame_number):  
         with lock:
@@ -686,10 +723,22 @@ class VideoManager():
                     # if the face[i] in the frame matches afound face[j] AND the found face is active (not []) 
                     if sim>=float(parameters["ThresholdSlider"]) and found_face["SourceFaceAssignments"]:
                         s_e = found_face["AssignedEmbedding"]
+                        img_orig = torch.clone(img)
                         # s_e = found_face['ptrdata']
                         img = self.func_w_test("swap_video", self.swap_core, img, fface[0], s_e, fface[1], parameters, control)
                         # img = img.permute(2,0,1)
-
+                        if parameters['RestoreEyesSwitch']:
+                            try:
+                                img = self.restore_eyes(img_orig,img,fface[0], parameters['RestoreEyesSlider']/100, parameters['RestoreEyesFeatherSlider'], parameters['RestoreEyesSizeSlider'])
+                            except Exception as e:
+                                pass
+                                # print("Eyes Restore failed")
+                                # print(e)
+                        if parameters['RestoreMouthSwitch']:
+                            try:
+                                img = self.restore_mouth(img_orig,img,fface[0], parameters['RestoreMouthSlider']/100, parameters['RestoreMouthFeatherSlider'], parameters['RestoreMouthSizeSlider']/100)
+                            except Exception as e:
+                                pass
                             
             img = img.permute(1,2,0)
             if not control['MaskViewButton'] and parameters['OrientSwitch']:
@@ -957,28 +1006,14 @@ class VideoManager():
             # swap = t256(swap)
             # swap = t512(swap)
 
-        
-        # Apply color corerctions
-        if parameters['ColorSwitch']:
-            # print(parameters['ColorGammaSlider'])
-            swap = torch.unsqueeze(swap,0)
-            swap = v2.functional.adjust_gamma(swap, parameters['ColorGammaSlider'], 1.0)
-            swap = torch.squeeze(swap)
-            swap = swap.permute(1, 2, 0).type(torch.float32)
-
-            del_color = torch.tensor([parameters['ColorRedSlider'], parameters['ColorGreenSlider'], parameters['ColorBlueSlider']], device=device)
-            swap += del_color
-            swap = torch.clamp(swap, min=0., max=255.)
-            swap = swap.permute(2, 0, 1).type(torch.uint8)        
-
         # Create border mask
         border_mask = torch.ones((128, 128), dtype=torch.float32, device=device)
         border_mask = torch.unsqueeze(border_mask,0)
         
         # if parameters['BorderState']:
         top = parameters['BorderTopSlider']
-        left = parameters['BorderSidesSlider']
-        right = 128-parameters['BorderSidesSlider']
+        left = parameters['BorderLeftSlider']
+        right = 128-parameters['BorderRightSlider']
         bottom = 128-parameters['BorderBottomSlider']
 
         border_mask[:, :top, :] = 0
@@ -1004,7 +1039,25 @@ class VideoManager():
         # Restorer
         if parameters["RestorerSwitch"]: 
             swap = self.func_w_test('Restorer', self.apply_restorer, swap, parameters)  
-        
+
+        # Apply color corerctions
+        if parameters['ColorSwitch']:
+            # print(parameters['ColorGammaSlider'])
+            swap = torch.unsqueeze(swap,0).contiguous()
+            swap = v2.functional.adjust_gamma(swap, parameters['ColorGammaSlider'], 1.0)
+            swap = torch.squeeze(swap)
+            swap = swap.permute(1, 2, 0).type(torch.float32)
+
+            del_color = torch.tensor([parameters['ColorRedSlider'], parameters['ColorGreenSlider'], parameters['ColorBlueSlider']], device=device)
+            swap += del_color                 
+            swap = torch.clamp(swap, min=0., max=255.)
+            swap = swap.permute(2, 0, 1).type(torch.uint8)    
+
+            swap = v2.functional.adjust_brightness(swap, parameters['ColorBrightSlider'])
+            swap = v2.functional.adjust_contrast(swap, parameters['ColorContrastSlider'])
+            swap = v2.functional.adjust_saturation(swap, parameters['ColorSaturationSlider'])
+            swap = v2.functional.adjust_sharpness(swap, parameters['ColorSharpnessSlider'])
+            swap = v2.functional.adjust_hue(swap, parameters['ColorHueSlider'])
             
         # Occluder
         if parameters["OccluderSwitch"]:
@@ -1012,6 +1065,10 @@ class VideoManager():
             mask = t128(mask)  
             swap_mask = torch.mul(swap_mask, mask)
 
+        if parameters["DFLXSegSwitch"]:
+            img_mask = self.func_w_test('occluder', self.apply_dfl_xseg , original_face_256, -parameters["DFLXSegSlider"])
+            img_mask = t128(img_mask)
+            swap_mask = torch.mul(swap_mask, 1 - img_mask)
 
         if parameters["FaceParserSwitch"]:
             mask = self.apply_face_parser(swap, parameters)
@@ -1104,11 +1161,11 @@ class VideoManager():
             img = img.permute(2,0,1)
 
         return img
-        
+
     # @profile    
     def apply_occlusion(self, img, amount):        
         img = torch.div(img, 255)
-        img = torch.unsqueeze(img, 0)
+        img = torch.unsqueeze(img, 0).contiguous()
         outpred = torch.ones((256,256), dtype=torch.float32, device=device).contiguous()
         
         self.models.run_occluder(img, outpred)        
@@ -1140,8 +1197,46 @@ class VideoManager():
             outpred = torch.add(outpred, 1)
             
         outpred = torch.reshape(outpred, (1, 256, 256)) 
-        return outpred         
-    
+        return outpred
+
+    def apply_dfl_xseg(self, img, amount):
+        img = img.type(torch.float32)
+        img = torch.div(img, 255)
+        img = torch.unsqueeze(img, 0).contiguous()
+        outpred = torch.ones((256,256), dtype=torch.float32, device=device).contiguous()
+        
+        self.models.run_dfl_xseg(img, outpred)
+        
+        outpred = torch.clamp(outpred, min=0.0, max=1.0)
+        outpred[outpred < 0.1] = 0
+        # invert values to mask areas to keep
+        outpred = 1.0 - outpred
+        outpred = torch.unsqueeze(outpred, 0).type(torch.float32)
+
+        if amount > 0:                   
+            kernel = torch.ones((1,1,3,3), dtype=torch.float32, device=device)
+
+            for i in range(int(amount)):
+                outpred = torch.nn.functional.conv2d(outpred, kernel, padding=(1, 1))       
+                outpred = torch.clamp(outpred, 0, 1)
+            
+            outpred = torch.squeeze(outpred)
+            
+        if amount < 0:      
+            outpred = torch.neg(outpred)
+            outpred = torch.add(outpred, 1)
+            kernel = torch.ones((1,1,3,3), dtype=torch.float32, device=device)
+
+            for i in range(int(-amount)):
+                outpred = torch.nn.functional.conv2d(outpred, kernel, padding=(1, 1))       
+                outpred = torch.clamp(outpred, 0, 1)
+            
+            outpred = torch.squeeze(outpred)
+            outpred = torch.neg(outpred)
+            outpred = torch.add(outpred, 1)
+            
+        outpred = torch.reshape(outpred, (1, 256, 256)) 
+        return outpred
       
     def apply_CLIPs(self, img, CLIPText, CLIPAmount):
         clip_mask = np.ones((352, 352))
@@ -1152,7 +1247,7 @@ class VideoManager():
         transform = transforms.Compose([transforms.ToTensor(),
                                         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]), 
                                         transforms.Resize((352, 352))])
-        CLIPimg = transform(img).unsqueeze(0)
+        CLIPimg = transform(img).unsqueeze(0).contiguous()
         
         if CLIPText != "":
             prompts = CLIPText.split(',')
@@ -1447,3 +1542,132 @@ class VideoManager():
         # test = swap.permute(1, 2, 0)
         # test = test.cpu().numpy()
         # cv2.imwrite('2.jpg', test) 
+
+
+    def restore_mouth(self, img_orig, img_swap, kpss_orig, blend_alpha=0.5, feather_radius=10, size_factor=0.5):
+        """
+        Extract mouth from img_orig using the provided keypoints and place it in img_swap.
+        
+        Args:
+            img_orig (torch.Tensor): The original image tensor of shape (C, H, W) from which mouth is extracted.
+            img_swap (torch.Tensor): The target image tensor of shape (C, H, W) where mouth is placed.
+            kpss (list): List of keypoints arrays for detected faces. Each keypoints array contains coordinates for 5 keypoints.
+            
+        Returns:
+            torch.Tensor: The resulting image tensor with mouth from img_orig placed on img_swap.
+        """
+        left_mouth = np.array([int(val) for val in kpss_orig[3]])
+        right_mouth = np.array([int(val) for val in kpss_orig[4]])
+        nose = np.array([int(val) for val in kpss_orig[2]])
+
+        # Calculate the distance between the left and right corners of the mouth
+        mouth_distance = np.linalg.norm(left_mouth - right_mouth)
+        # print("mouth_distance", mouth_distance)
+        mouth_size = int(mouth_distance * size_factor)  # Adjust the fraction as needed
+        # print("mouth_size", mouth_size)
+
+        # Define the bounding box for the mouth
+        ymin_mouth = max(0, min(left_mouth[1], right_mouth[1]) - mouth_size)
+        ymax_mouth = min(img_orig.size(1), max(left_mouth[1], right_mouth[1]) + mouth_size)
+        xmin_mouth = max(0, left_mouth[0] - mouth_size)
+        xmax_mouth = min(img_orig.size(2), right_mouth[0] + mouth_size)
+        mouth_region_orig = img_orig[:, ymin_mouth:ymax_mouth, xmin_mouth:xmax_mouth]
+
+        # Blend mouth region with colors from img_swap
+        target_ymin_mouth = ymin_mouth
+        target_ymax_mouth = ymin_mouth + mouth_region_orig.size(1)
+        target_xmin_mouth = xmin_mouth
+        target_xmax_mouth = xmin_mouth + mouth_region_orig.size(2)
+        img_swap_mouth = img_swap[:, target_ymin_mouth:target_ymax_mouth, target_xmin_mouth:target_xmax_mouth]
+        blended_mouth = blend_alpha * img_swap_mouth + (1 - blend_alpha) * mouth_region_orig
+        blended_mouth = self.feather_blend(blended_mouth, img_swap_mouth, feather_radius)
+        img_swap[:, target_ymin_mouth:target_ymax_mouth, target_xmin_mouth:target_xmax_mouth] = blended_mouth
+        return img_swap
+
+    def restore_eyes(self,img_orig, img_swap, kpss_orig, blend_alpha=0.5, feather_radius=10, size_factor = 3.5):
+        """
+        Extract eyes from img_orig using the provided keypoints and place them in img_swap.
+        
+        Args:
+            img_orig (torch.Tensor): The original image tensor of shape (C, H, W) from which eyes are extracted.
+            img_swap (torch.Tensor): The target image tensor of shape (C, H, W) where eyes are placed.
+            kpss (list): List of keypoints arrays for detected faces. Each keypoints array contains coordinates for 5 keypoints.
+            
+        Returns:
+            torch.Tensor: The resulting image tensor with eyes from img_orig placed on img_swap.
+        """
+        left_eye = np.array([int(val) for val in kpss_orig[0]])
+        right_eye = np.array([int(val) for val in kpss_orig[1]])
+        # Calculate the distance between the eyes
+        eye_distance = np.linalg.norm(left_eye - right_eye)
+        # Define eye size as a fraction of the eye distance
+        eye_size = int(eye_distance / size_factor)  # Adjust the fraction as needed
+        # Extract left eye region from original image
+        ymin_left = max(0, left_eye[1] - eye_size)
+        ymax_left = min(img_orig.size(1), left_eye[1] + eye_size)
+        xmin_left = max(0, left_eye[0] - eye_size)
+        xmax_left = min(img_orig.size(2), left_eye[0] + eye_size)
+
+        left_eye_region_orig = img_orig[:, ymin_left:ymax_left, xmin_left:xmax_left]
+
+        # Extract right eye region from original image
+        ymin_right = max(0, right_eye[1] - eye_size)
+        ymax_right = min(img_orig.size(1), right_eye[1] + eye_size)
+        xmin_right = max(0, right_eye[0] - eye_size)
+        xmax_right = min(img_orig.size(2), right_eye[0] + eye_size)
+
+        right_eye_region_orig = img_orig[:, ymin_right:ymax_right, xmin_right:xmax_right]
+        # Blend left eye region with colors from img_swap
+        target_ymin_left = ymin_left
+        target_ymax_left = ymin_left + left_eye_region_orig.size(1)
+        target_xmin_left = xmin_left
+        target_xmax_left = xmin_left + left_eye_region_orig.size(2)
+
+        img_swap_left_eye = img_swap[:, target_ymin_left:target_ymax_left, target_xmin_left:target_xmax_left]
+        blended_left_eye = blend_alpha * img_swap_left_eye + (1 - blend_alpha) * left_eye_region_orig
+
+        # Apply feathering to blend the borders
+        blended_left_eye = self.feather_blend(blended_left_eye, img_swap_left_eye, feather_radius)
+
+        img_swap[:, target_ymin_left:target_ymax_left, target_xmin_left:target_xmax_left] = blended_left_eye
+
+        # Blend right eye region with colors from img_swap
+        target_ymin_right = ymin_right
+        target_ymax_right = ymin_right + right_eye_region_orig.size(1)
+        target_xmin_right = xmin_right
+        target_xmax_right = xmin_right + right_eye_region_orig.size(2)
+
+        img_swap_right_eye = img_swap[:, target_ymin_right:target_ymax_right, target_xmin_right:target_xmax_right]
+        blended_right_eye = blend_alpha * img_swap_right_eye + (1 - blend_alpha) * right_eye_region_orig
+
+        # Apply feathering to blend the borders
+        blended_right_eye = self.feather_blend(blended_right_eye, img_swap_right_eye, feather_radius)
+
+        img_swap[:, target_ymin_right:target_ymax_right, target_xmin_right:target_xmax_right] = blended_right_eye
+
+        return img_swap
+
+    def feather_blend(self, src_region, target_region, feather_radius):
+        """
+        Apply feathering to blend the borders of src_region with target_region.
+        Args:
+            src_region (torch.Tensor): Source region tensor of shape (C, H, W).
+            target_region (torch.Tensor): Target region tensor of shape (C, H, W).
+            feather_radius (int): Radius of feathering effect.
+        Returns:
+            torch.Tensor: Blended region tensor with feathering applied.
+        """
+        _, h, w = src_region.size()
+        mask = torch.ones((1, h, w), dtype=torch.float32).cuda()
+
+        for y in range(feather_radius):
+            mask[:, y] *= y / feather_radius
+            mask[:, h - 1 - y] *= y / feather_radius
+
+        for x in range(feather_radius):
+            mask[:, :, x] *= x / feather_radius
+            mask[:, :, w - 1 - x] *= x / feather_radius
+
+        blended_region = mask * src_region + (1 - mask) * target_region
+
+        return blended_region

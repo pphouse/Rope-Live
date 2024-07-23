@@ -8,6 +8,9 @@ import rope.GUI as GUI
 import rope.VideoManager as VM
 import rope.Models as Models
 from rope.external.clipseg import CLIPDensePredT
+import subprocess
+import os
+import psutil
 
 resize_delay = 1
 mem_delay = 1
@@ -64,6 +67,10 @@ def coordinator():
             vm.disable_virtualcam() 
             action.pop(0)  
 
+        elif action[0][0] == "change_webcam_resolution":
+            vm.change_webcam_resolution() 
+            action.pop(0) 
+
         # elif action[0][0] == "swap":
         #     vm.swap = action[0][1]
         #     action.pop(0)
@@ -111,28 +118,54 @@ def coordinator():
         # From VM    
         elif action[0][0] == "stop_play":
             gui.set_player_buttons_to_inactive()
+            action.pop(0)
+
+        elif action[0][0] == "set_virtual_cam_toggle_disable":
+            gui.set_virtual_cam_toggle_disable()
+            action.pop(0)
+
+        elif action[0][0] == "disable_record_button":
+            gui.disable_record_button()
+            action.pop(0)
+
+        elif action[0][0] == "clear_faces_stop_swap":
+            gui.clear_faces()
+            gui.toggle_swapper(0)
+            action.pop(0)
+
             action.pop(0)   
 
         elif action[0][0] == "set_virtual_cam_toggle_disable":
             gui.set_virtual_cam_toggle_disable()
             action.pop(0)    
+            
         elif action[0][0] == "disable_record_button":
             gui.disable_record_button()
             action.pop(0)  
         
+        elif action[0][0] == "clear_faces_stop_swap":
+            gui.clear_faces()
+            gui.toggle_swapper(0)
+            action.pop(0)  
+
         elif action[0][0] == "set_slider_length":
             gui.set_video_slider_length(action[0][1])
             action.pop(0)
 
         elif action[0][0] == "update_markers_canvas":
             gui.update_markers_canvas()
+            action.pop(0)    
+
+        elif action[0][0] == "stop_ffplay":
+            check_and_kill_ffplay()
             action.pop(0)        
 
         # Face Landmarks
         elif action[0][0] == "face_landmarks":
             vm.face_landmarks = action[0][1]
             action.pop(0)
-            
+
+         
         else:
             print("Action not found: "+action[0][0]+" "+str(action[0][1]))
             action.pop(0)
@@ -157,8 +190,12 @@ def coordinator():
     # print(time.time() - start)    
     
 
-
-
+def check_and_kill_ffplay():
+    try:
+        if "ffplay.exe" in (i.name() for i in psutil.process_iter()):
+            os.system("taskkill /f /t /im ffplay.exe 1>nul 2>&1")
+    except:
+        pass
     
 def load_clip_model():
     # https://github.com/timojl/clipseg
