@@ -16,3 +16,4 @@ merged_embeddings*.txt
 tensorrt-engines/
 source_videos/
 source_images/
+TensorRT*/
