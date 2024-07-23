@@ -33,7 +33,6 @@ lock=threading.Lock()
 class VideoManager():  
     def __init__(self, models ):
         self.virtcam = False
-        self.virtcam = False
         self.models = models
         # Model related
         self.swapper_model = []             # insightface swapper model
@@ -162,32 +161,6 @@ class VideoManager():
                     time.sleep(1)
                 self.load_target_video(self.video_file)
                 self.add_action('clear_faces_stop_swap', None)
-    def enable_virtualcam(self):
-        #Check if capture contains any cv2 stream or is it an empty list
-        if not isinstance(self.capture, (list)):
-            vid_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            vid_width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-            self.disable_virtualcam()
-            try:
-                self.virtcam = pyvirtualcam.Camera(width=vid_width, height=vid_height, fps=self.fps)
-            except Exception as e:
-                print(e)
-    def disable_virtualcam(self):
-        if self.virtcam:
-            self.virtcam.close()
-        self.virtcam = False
-        # print("Disable hello")
-    def webcam_selected(self, file):
-        return ('Webcam' in file) and len(file)==8
-    
-    def change_webcam_resolution(self):
-        if self.video_file:
-            if self.webcam_selected(self.video_file):
-                if self.play:
-                    self.play_video('stop')
-                    time.sleep(1)
-                self.load_target_video(self.video_file)
-                self.add_action('clear_faces_stop_swap', None)
 
     def load_target_video( self, file ):
         # If we already have a video loaded, release it
@@ -222,10 +195,6 @@ class VideoManager():
             self.target_video = file
             self.is_video_loaded = True
             self.is_image_loaded = False
-            if not self.webcam_selected(file):
-                self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
-            else:
-                self.video_frame_total = 99999999
             if not self.webcam_selected(file):
                 self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
             else:

@@ -1262,9 +1262,6 @@ class GUI(tk.Tk):
                 # self.add_action(load_target_video()
                 self.add_action('change_webcam_resolution')
 
-            elif name=='WebCamMaxResolSel':
-                # self.add_action(load_target_video()
-                self.add_action('change_webcam_resolution')
             #
         elif mode=='control':
             self.control[name] =  self.widget[name].get()
@@ -2422,10 +2419,6 @@ class GUI(tk.Tk):
             self.layer['slider_frame'].grid(row=2, column=0, sticky='NEWS', pady=0)
             self.layer['preview_frame'].grid(row=4, column=0, sticky='NEWS')
             self.layer['markers_canvas'].grid(row=3, column=0, sticky='NEWS')
-
-
-
-
 
         
     def update_marker(self, action):
