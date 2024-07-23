@@ -133,21 +133,6 @@ def coordinator():
             gui.toggle_swapper(0)
             action.pop(0)
 
-            action.pop(0)   
-
-        elif action[0][0] == "set_virtual_cam_toggle_disable":
-            gui.set_virtual_cam_toggle_disable()
-            action.pop(0)    
-            
-        elif action[0][0] == "disable_record_button":
-            gui.disable_record_button()
-            action.pop(0)  
-        
-        elif action[0][0] == "clear_faces_stop_swap":
-            gui.clear_faces()
-            gui.toggle_swapper(0)
-            action.pop(0)  
-
         elif action[0][0] == "set_slider_length":
             gui.set_video_slider_length(action[0][1])
             action.pop(0)
