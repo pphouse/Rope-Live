@@ -5,7 +5,7 @@ For a full list of features and details, please visit the original project [page
 
 ## Additional Features in this Fork: ##
 
-* Includes a lot of awesome mods created Alucard24, Corza, Glat0s and others. You can check out Alucard's fork with those mods [here](https://github.com/Alucard24/Rope/)
+* Includes a lot of awesome mods created by Alucard24, Corza, Glat0s and others. You can check out Alucard's fork with those mods [here](https://github.com/Alucard24/Rope/)
 * Supports using Live Webcam feed as a video source for swapping
 * Supports sending the swapped video as Virtual Camera output (in realtime) which can be used in external applications like Google Meet, Zoom, Twitch etc..
 * Integrates Rope with OBS Studio for real-time recording with microphone or computer audio
