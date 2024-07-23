@@ -871,9 +871,15 @@ class GUI(tk.Tk):
         self.widget['WebCamMaxResolSel'] = GE.TextSelection(self.layer['parameters_frame'], 'WebCamMaxResolSel', 'Webcam Resolution', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.72)
         row += row_delta
 
-        #Webcam Max Resolution
-        self.widget['WebCamMaxNoSel'] = GE.TextSelection(self.layer['parameters_frame'], 'WebCamMaxNoSel', 'Max Webcams', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.72)
+       #Webcam Max FPS
+        self.widget['WebCamMaxFPSSel'] = GE.TextSelection(self.layer['parameters_frame'], 'WebCamMaxFPSSel', 'Webcam FPS', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.72)
         row += row_delta
+
+        #Webcam Max Count
+        self.widget['WebCamMaxNoSlider'] = GE.Slider2(self.layer['parameters_frame'], 'WebCamMaxNoSlider', 'Max Webcams', 3, self.update_data, 'parameter', 398, 20, 1, row, 0.72)
+        row += row_delta
+        # self.widget['WebCamMaxNoSel'] = GE.TextSelection(self.layer['parameters_frame'], 'WebCamMaxNoSel', 'Max Webcams', 3, self.update_data, 'parameter', 'parameter', 398, 20, 1, row, 0.72)
+        # row += row_delta
 
         #Virtual Cam
         self.widget['VirtualCameraSwitch'] = GE.Switch2(self.layer['parameters_frame'], 'VirtualCameraSwitch', 'Send Frames to Virtual Camera', 3, self.toggle_virtualcam, 'control', 398, 20, 1, row)
@@ -1258,9 +1264,9 @@ class GUI(tk.Tk):
                 self.models.delete_models()
                 torch.cuda.empty_cache()
 
-            elif name=='WebCamMaxResolSel':
+            elif name=='WebCamMaxResolSel' or name=='WebCamMaxFPSSel':
                 # self.add_action(load_target_video()
-                self.add_action('change_webcam_resolution')
+                self.add_action('change_webcam_resolution_and_fps')
 
             #
         elif mode=='control':
@@ -1872,7 +1878,7 @@ class GUI(tk.Tk):
         videos = []
         #Webcam setup
         try:
-            for i in range(self.parameters['WebCamMaxNoSel']):
+            for i in range(self.parameters['WebCamMaxNoSlider']):
                 camera_capture = cv2.VideoCapture(i, cv2.CAP_DSHOW)
                 success, webcam_frame = camera_capture.read() 
                 ratio = float(webcam_frame.shape[0]) / webcam_frame.shape[1]
@@ -2668,8 +2674,8 @@ class GUI(tk.Tk):
     def disable_record_button(self):
         self.widget['TLRecButton'].disable_button()
 
-    # def change_webcam_resolution(self, mode, name, use_markers=False):
+    # def change_webcam_resolution_and_fps(self, mode, name, use_markers=False):
     #     self.parameters[name] = self.widget[name].get()
     #     self.add_action('parameters', self.parameters)
-    #     self.add_action('change_webcam_resolution')
+    #     self.add_action('change_webcam_resolution_and_fps')
 
