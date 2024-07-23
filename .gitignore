@@ -17,3 +17,4 @@ tensorrt-engines/
 source_videos/
 source_images/
 TensorRT*/
+Rope_TensorRT*.bat
