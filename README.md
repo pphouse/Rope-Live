@@ -9,6 +9,7 @@ For a full list of features and details, please visit the original project [page
 * Supports using Live Webcam feed as a video source for swapping
 * Supports sending the swapped video as Virtual Camera output (in realtime) which can be used in external applications like Google Meet, Zoom, Twitch etc..
 * Integrates Rope with OBS Studio for real-time recording with microphone or computer audio
+* Eyes and Mouth restoration from the original face (Blend the Eyes and Mouth from original face with the swapped face to preserve expressions)
 
 ## Requirements
   * Windows 10 or 11
