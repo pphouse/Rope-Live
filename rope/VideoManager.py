@@ -162,8 +162,7 @@ class VideoManager():
                 self.load_target_video(self.video_file)
                 self.add_action('clear_faces_stop_swap', None)
 
-    def load_target_video( self, file ):
-        # If we already have a video loaded, release it
+    def load_target_video(self, file):
         if self.capture:
             self.capture.release()
         
@@ -172,12 +171,10 @@ class VideoManager():
             self.disable_virtualcam()
 
             
-        # Open file   
         self.video_file = file
         if self.webcam_selected(file):
             webcam_index = int(file[-1])
-            # Only use dshow if it is a Physical webcam in Windows
-            if platform.system == 'Windows':
+            if platform.system() == 'Windows':
                 try:
                     self.capture = cv2.VideoCapture(webcam_index, cv2.CAP_DSHOW)
                 except:
@@ -189,21 +186,20 @@ class VideoManager():
             self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, int(res_width))
             self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, int(res_height))
             self.fps = self.parameters['WebCamMaxFPSSel']
-
+        elif file.lower() == 'obs virtual camera':
+            self.capture = cv2.VideoCapture(self.find_obs_virtual_camera())
+            self.fps = self.capture.get(cv2.CAP_PROP_FPS)
         else:
             self.capture = cv2.VideoCapture(file)
             self.fps = self.capture.get(cv2.CAP_PROP_FPS)
 
-        
         if not self.capture.isOpened():
-            if self.webcam_selected(file):
-                print("Cannot open file: ", file)
-            
+            print("Cannot open file: ", file)
         else:
             self.target_video = file
             self.is_video_loaded = True
             self.is_image_loaded = False
-            if not self.webcam_selected(file):
+            if not self.webcam_selected(file) and file.lower() != 'obs virtual camera':
                 self.video_frame_total = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
             else:
                 self.video_frame_total = 99999999
@@ -224,12 +220,23 @@ class VideoManager():
             self.r_frame_q.append(temp)
             self.capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
 
-            # Face Landmarks
             if self.face_landmarks:
                 self.face_landmarks.remove_all_data()
                 self.face_landmarks.apply_landmarks_to_widget_and_parameters(self.current_frame, 1)
-            #
-    
+
+    def find_obs_virtual_camera(self):
+        for i in range(10):  # 最大10個のカメラをチェック
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                ret, frame = cap.read()
+                if ret:
+                    name = cap.getBackendName()
+                    if 'OBS Virtual Camera' in name:
+                        cap.release()
+                        return i
+            cap.release()
+        return -1  # OBS仮想カメラが見つからない場合
+
     def load_target_image(self, file):
         if self.capture:
             self.capture.release()
@@ -243,18 +250,15 @@ class VideoManager():
         temp = [self.image, False]
         self.frame_q.append(temp)
 
-        # Face Landmarks
         if self.face_landmarks:
             self.face_landmarks.remove_all_data()
             self.face_landmarks.apply_landmarks_to_widget_and_parameters(self.current_frame, 1)
-        #
 
         self.is_image_loaded = True
 
     
     ## Action queue
     def add_action(self, action, param):
-        # print(inspect.currentframe().f_back.f_code.co_name, '->add_action: '+action)
         temp = [action, param]
         self.action_q.append(temp)    
     
@@ -292,19 +296,15 @@ class VideoManager():
                 self.play_video("stop")
                 self.process_qs = []
 
-            # Face Landmarks
             apply_landmarks = (self.current_frame != int(frame))
-            #
             self.current_frame = int(frame)
 
             self.capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
             success, target_image = self.capture.read() #BGR
 
             if success:
-                # Face Landmarks
                 if apply_landmarks and self.face_landmarks:
                     self.face_landmarks.apply_landmarks_to_widget_and_parameters(self.current_frame, 1)
-                #
                 
                 target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2RGB) #RGB 
                 if not self.control['SwapFacesButton']:   
@@ -336,22 +336,18 @@ class VideoManager():
 
 
     def play_video(self, command):
-        # print(inspect.currentframe().f_back.f_code.co_name, '->play_video: ')
         if command == "play":
-            # Initialization
             self.play = True
             self.fps_average = []            
             self.process_qs = []
             self.capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame)
             self.frame_timer = time.time()
             
-            # Create reusable queue based on number of threads
             for i in range(self.parameters['ThreadsSlider']):
                     new_process_q = self.process_q.copy()
                     self.process_qs.append(new_process_q)
                     
             
-            # Start up audio if requested
             if self.control['AudioButton']:  
                 seek_time = (self.current_frame)/self.fps
                 args =  ["ffplay", 
@@ -366,10 +362,8 @@ class VideoManager():
  
                 self.audio_sp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-                # Parse the console to find where the audio started
                 while True:
                     temp = self.audio_sp.stdout.read(69)
-                    # sought_time = float(temp[:7])
                     if temp[:7] != b'    nan':
                         try:
                             sought_time = float(temp[:7].strip()) 
@@ -379,10 +373,6 @@ class VideoManager():
                         except Exception as e:
                             print(e)
                         break
-
-#'    nan    :  0.000
-#'   1.25 M-A:  0.000 fd=   0 aq=   12KB vq=    0KB sq=    0B f=0/0' 
-                
 
         elif command == "stop":
             self.play = False
@@ -401,7 +391,6 @@ class VideoManager():
         elif command=='stop_from_gui':
             self.play = False
 
-            # Find the lowest frame in the current render queue and set the current frame to the one before it
             index, min_frame = self.find_lowest_frame(self.process_qs)
             if index != -1:
                 self.current_frame = min_frame-1   
@@ -441,7 +430,6 @@ class VideoManager():
                         "-an",       
                         "-r",           str(self.fps),
                         "-i",           "pipe:",
-                        # '-g',           '25',
                         "-vf",          "format=yuvj420p",
                         "-c:v",         "libx264",
                         "-crf",         str(self.parameters['VideoQualSlider']),
@@ -455,11 +443,9 @@ class VideoManager():
                 size = (frame_width, frame_height)
                 self.sp = cv2.VideoWriter(self.temp_file,  cv2.VideoWriter_fourcc(*'mp4v') , self.fps, size) 
       
-    # @profile
     def process(self):
         process_qs_len = range(len(self.process_qs))
 
-        # Add threads to Queue
         if self.play == True and self.is_video_loaded == True:
             for item in self.process_qs:
                 if item['Status'] == 'clear' and self.current_frame < self.video_frame_total:
@@ -474,7 +460,6 @@ class VideoManager():
         else:
             self.play = False
 
-        # Always be emptying the queues
         time_diff = time.time() - self.frame_timer
 
         if not self.record and time_diff >= 1.0/float(self.fps) and self.play:
@@ -486,13 +471,10 @@ class VideoManager():
                     temp = [self.process_qs[index]['ProcessedFrame'], self.process_qs[index]['FrameNumber']]
                     self.frame_q.append(temp)
 
-                    # Report fps, other data
                     self.fps_average.append(1.0/time_diff)
                     avg_fps = self.fps / self.fps_average[-1] if self.fps_average else 10
 
-                    # self.send_to_virtual_camera(temp[0], 15)
                     if self.control['VirtualCameraSwitch'] and self.virtcam:
-                        # print("virtcam",self.virtcam)
                         try:
                             self.virtcam.send(temp[0])
                             self.virtcam.sleep_until_next_frame()
@@ -533,7 +515,6 @@ class VideoManager():
                         temp = [image, self.process_qs[index]['FrameNumber']]
                         self.frame_q.append(temp)
 
-                        # Close video and process
                         if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:
                             self.play_video("stop")
                             stop_time = float(self.capture.get(cv2.CAP_PROP_POS_FRAMES) / float(self.fps))
@@ -578,7 +559,6 @@ class VideoManager():
             self.record=False  
             self.add_action('disable_record_button', False)  
      
-    # @profile
     def thread_video_read(self, frame_number):  
         with lock:
             success, target_image = self.capture.read()
@@ -599,36 +579,27 @@ class VideoManager():
                     break
 
 
-    # @profile
     def swap_video(self, target_image, frame_number, use_markers):
-        # success, target_image = self.webcam.read()
-        # self.capture_frame()
-        # Grab a local copy of the parameters to prevent threading issues
         parameters = self.parameters.copy()
         control = self.control.copy()
         
-        # Find out if the frame is in a marker zone and copy the parameters if true
         if self.markers and use_markers:
             temp=[]
             for i in range(len(self.markers)):
                 temp.append(self.markers[i]['frame'])
             idx = bisect.bisect(temp, frame_number)
 
-            # We copy marker parameters only if condition matches.
             if idx > 0:
                 parameters = self.markers[idx-1]['parameters'].copy()
         
-        # Load frame into VRAM
         img = torch.from_numpy(target_image.astype('uint8')).to('cuda') #HxWxc
         img = img.permute(2,0,1)#cxHxW        
         
-        #Scale up frame if it is smaller than 512
         img_x = img.size()[2]
         img_y = img.size()[1]
 
         det_scale = 1.0
         if img_x<512 and img_y<512:
-            # if x is smaller, set x to 512
             if img_x <= img_y:
                 new_height = int(512*img_y/img_x)
                 tscale = v2.Resize((new_height, 512), antialias=True)
@@ -654,24 +625,18 @@ class VideoManager():
 
             det_scale = torch.div(new_height, img_y)
 
-        # Rotate the frame
         if parameters['OrientSwitch']:
             img = v2.functional.rotate(img, angle=parameters['OrientSlider'], interpolation=v2.InterpolationMode.BILINEAR, expand=True)
 
-        # Find all faces in frame and return a list of 5-pt kpss
         if parameters["AutoRotationSwitch"]:
             rotation_angles = [0, 90, 180, 270]
         else:
             rotation_angles = [0]
         bboxes, kpss = self.func_w_test("detect", self.models.run_detect, img, parameters['DetectTypeTextSel'], max_num=20, score=parameters['DetectScoreSlider']/100.0, use_landmark_detection=parameters['LandmarksDetectionAdjSwitch'], landmark_detect_mode=parameters["LandmarksDetectTypeTextSel"], landmark_score=parameters["LandmarksDetectScoreSlider"]/100.0, from_points=parameters["LandmarksAlignModeFromPointsSwitch"], rotation_angles=rotation_angles)
 
-        # Get embeddings for all faces found in the frame
         ret = []
-        # Face Landmarks
         face_id = 0
-        #
         for face_kps in kpss:
-            # Face Landmarks
             face_id+=1
             if self.face_landmarks and parameters['LandmarksPositionAdjSwitch']:
                 landmarks = self.face_landmarks.get_landmarks(frame_number, face_id)
@@ -686,37 +651,28 @@ class VideoManager():
                     face_kps[3][1] += landmarks[3][1]
                     face_kps[4][0] += landmarks[4][0]
                     face_kps[4][1] += landmarks[4][1]
-            #
 
             face_emb, _ = self.func_w_test('recognize',  self.models.run_recognize, img, face_kps, self.parameters["SimilarityTypeTextSel"], self.parameters['FaceSwapperModelTextSel'])
             ret.append([face_kps, face_emb])
         
         if ret:
-            # Loop through target faces to see if they match our found face embeddings
             for fface in ret:
                 for found_face in self.found_faces:
-                    # sim between face in video and already found face
                     sim = self.findCosineDistance(fface[1], found_face["Embedding"])
-                    # if the face[i] in the frame matches afound face[j] AND the found face is active (not []) 
                     if sim>=float(parameters["ThresholdSlider"]) and found_face["SourceFaceAssignments"]:
                         s_e = found_face["AssignedEmbedding"]
                         img_orig = torch.clone(img)
-                        # s_e = found_face['ptrdata']
                         img = self.func_w_test("swap_video", self.swap_core, img, fface[0], s_e, fface[1], parameters, control)
-                        # img = img.permute(2,0,1)
                         if parameters['RestoreEyesSwitch']:
                             try:
                                 img = self.restore_eyes(img_orig,img,fface[0], parameters['RestoreEyesSlider']/100, parameters['RestoreEyesFeatherSlider'], parameters['RestoreEyesSizeSlider'])
                             except Exception as e:
                                 pass
-                                # print("Eyes Restore failed")
-                                # print(e)
                         if parameters['RestoreMouthSwitch']:
                             try:
                                 img = self.restore_mouth(img_orig,img,fface[0], parameters['RestoreMouthSlider']/100, parameters['RestoreMouthFeatherSlider'], parameters['RestoreMouthSizeSlider']/100)
                             except Exception as e:
                                 pass
-                            
             img = img.permute(1,2,0)
             if not control['MaskViewButton'] and parameters['OrientSwitch']:
                 img = img.permute(2,0,1)
@@ -733,7 +689,6 @@ class VideoManager():
         if self.perf_test:
             print('------------------------')  
         
-        # Unscale small videos
         if img_x <512 or img_y < 512:
             tscale = v2.Resize((img_y, img_x), antialias=True)
             img = img.permute(2,0,1)
@@ -776,12 +731,6 @@ class VideoManager():
         cos_dist = 1.0 - np.dot(vector1, vector2)/(np.linalg.norm(vector1)*np.linalg.norm(vector2)) # 2..0
 
         return 100.0-cos_dist*50.0
-        '''
-        vector1 = vector1.ravel()
-        vector2 = vector2.ravel()
-
-        return 1 - np.dot(vector1, vector2)/(np.linalg.norm(vector1)*np.linalg.norm(vector2))
-        '''
 
     def func_w_test(self, name, func, *args, **argsv):
         timing = time.time()
