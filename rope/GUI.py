@@ -1552,7 +1552,7 @@ class GUI(tk.Tk):
 
     def select_video_path(self):
         temp = self.json_dict["source videos"]
-        self.json_dict["source videos"] = filedialog.askdirectory(title="Select Target Videos Folder", initialdir=temp)
+        self.json_dict["source videos"] = filedialog.askdirectory(title="動画フォルダを選択", initialdir=temp)
 
         path = self.create_path_string(self.json_dict["source videos"], 28)
         self.input_videos_text.configure(text=path)
@@ -1562,6 +1562,39 @@ class GUI(tk.Tk):
             outfile.close()
         self.widget['VideoFolderButton'].set(False, request_frame=False)
         self.populate_target_videos()
+
+        # OBSの仮想カメラを追加
+        self.add_obs_virtual_camera()
+
+    def add_obs_virtual_camera(self):
+        try:
+            obs_camera = cv2.VideoCapture(self.parameters['WebCamMaxNoSlider'])  # 最後のカメラインデックスの次を使用
+            if obs_camera.isOpened():
+                success, obs_frame = obs_camera.read()
+                if success:
+                    ratio = float(obs_frame.shape[0]) / obs_frame.shape[1]
+                    new_height = 50
+                    new_width = int(new_height / ratio)
+                    obs_frame = cv2.resize(obs_frame, (new_width, new_height))
+                    obs_frame = cv2.cvtColor(obs_frame, cv2.COLOR_BGR2RGB)
+                    self.target_media.append(ImageTk.PhotoImage(image=Image.fromarray(obs_frame)))
+                    
+                    button = tk.Button(self.target_media_canvas, style.media_button_off_3, height=65, width=90)
+                    button.config(image=self.target_media[-1], text="OBS仮想カメラ", compound='top', anchor='n', 
+                                command=lambda: self.load_target(len(self.target_media)-1, f'OBS仮想カメラ', 'Video'))
+                    button.bind("<MouseWheel>", self.target_videos_mouse_wheel)
+                    
+                    self.target_media_buttons.append(button)
+                    self.target_media_canvas.create_window(
+                        (len(self.target_media_buttons)-1)%2*100, 
+                        (len(self.target_media_buttons)-1)//2*79, 
+                        window=button, anchor='nw'
+                    )
+                    
+                    self.static_widget['input_videos_scrollbar'].resize_scrollbar(None)
+                obs_camera.release()
+        except Exception as e:
+            print(f"OBS仮想カメラの追加中にエラーが発生しました: {e}")
 
     def select_save_video_path(self):
         temp = self.json_dict["saved videos"]
